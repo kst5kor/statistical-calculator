@@ -2352,6 +2352,13 @@ def simplify_to_single_characteristic():
     active_name = st.session_state.get("active_characteristic_name")
     if active_name not in st.session_state.characteristics:
         active_name = next(iter(st.session_state.characteristics))
+    # Preserve any widget-driven state (e.g. mode radio button) by syncing
+    # current global values INTO the characteristic BEFORE loading back.
+    # This ensures the user's radio selection is not overwritten.
+    if active_name in st.session_state.characteristics:
+        for key in CHARACTERISTIC_FIELDS:
+            if key in st.session_state:
+                st.session_state.characteristics[active_name][key] = st.session_state[key]
     active_state = st.session_state.characteristics[active_name]
     st.session_state.characteristics = {active_name: active_state}
     st.session_state.active_characteristic_name = active_name
