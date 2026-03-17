@@ -568,7 +568,7 @@ class PlotManager:
                 "fixedrange": False,  # Enable vertical zoom
                 "range": [0, max_pdf_y],
                 "tickfont": {"size": 9},
-                "showticklabels": s > 0,
+                "showticklabels": bool(s > 0),
                 "showspikes": True,  # Crosshair
                 "spikemode": "across",
                 "spikesnap": "cursor",
@@ -2666,28 +2666,44 @@ st.markdown(
         font-size: 15px;
     }
     
-    /* === METRICS (Light Mode) === */
+    /* === METRICS === */
     [data-testid="stMetric"] {
-        background: #f8fafc;
         padding: 0.85rem 1rem !important;
         border-radius: 10px;
         border-left: 3px solid #3b82f6;
     }
     
-    /* === DARK MODE OVERRIDES === */
-    [data-theme="dark"] [data-testid="stMetric"],
-    .stApp[data-theme="dark"] [data-testid="stMetric"] {
-        background: #1e293b !important;
+    /* === THEME-AWARE METRIC BACKGROUNDS === */
+    @media (prefers-color-scheme: light) {
+        [data-testid="stMetric"] {
+            background: #f8fafc;
+        }
+    }
+    @media (prefers-color-scheme: dark) {
+        [data-testid="stMetric"] {
+            background: #1e293b !important;
+        }
+        [data-testid="stMetric"] label,
+        [data-testid="stMetric"] [data-testid="stMetricValue"],
+        [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+            color: #e2e8f0 !important;
+        }
     }
     
-    /* Ensure inline HTML text inherits theme color in dark mode */
-    [data-theme="dark"] p,
-    [data-theme="dark"] span,
-    [data-theme="dark"] div,
-    .stApp[data-theme="dark"] p,
-    .stApp[data-theme="dark"] span,
-    .stApp[data-theme="dark"] div {
-        color: inherit;
+    /* Explicit dark mode overrides using all known Streamlit selectors */
+    [data-theme="dark"] [data-testid="stMetric"],
+    .stApp[data-theme="dark"] [data-testid="stMetric"],
+    [data-testid="stAppViewContainer"][data-theme="dark"] [data-testid="stMetric"],
+    .stApp.appview-container [data-testid="stMetric"] {
+        background: #1e293b !important;
+    }
+    [data-theme="dark"] [data-testid="stMetric"] label,
+    [data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricDelta"],
+    .stApp[data-theme="dark"] [data-testid="stMetric"] label,
+    .stApp[data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricValue"],
+    .stApp[data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        color: #e2e8f0 !important;
     }
     
     .stTabs [data-baseweb="tab"] {
