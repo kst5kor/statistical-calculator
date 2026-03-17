@@ -582,14 +582,13 @@ class PlotManager:
                 "xanchor": "right",
                 "y": 0.98,
                 "yanchor": "top",
-                "bgcolor": "rgba(255,255,255,0.8)",
+                "bgcolor": "rgba(128,128,128,0.15)",
                 "bordercolor": "#ddd",
                 "borderwidth": 1,
             },
             "margin": {"t": 50, "b": 50, "l": 50, "r": 20},
             "hovermode": "x unified",
             "hoverlabel": {
-                "bgcolor": "white",
                 "font_size": 12,
                 "font_family": "sans-serif",
                 "bordercolor": "#444",
@@ -597,8 +596,10 @@ class PlotManager:
             "dragmode": "zoom",  # Default to zoom mode
             "modebar": {
                 "orientation": "v",
-                "bgcolor": "rgba(255,255,255,0.8)",
+                "bgcolor": "rgba(128,128,128,0.15)",
             },
+            "paper_bgcolor": "rgba(0,0,0,0)",
+            "plot_bgcolor": "rgba(0,0,0,0)",
         }
         # Note: PLOT_CONFIG is now defined at class level
 
@@ -1874,7 +1875,7 @@ class SigmaAssistant:
 /* Sigma Assistant Fixed Positioning - injected into Streamlit main page */
 .sigma-fixed-container {{
     position: fixed !important;
-    bottom: 20px !important;
+    bottom: 80px !important;
     right: 20px !important;
     z-index: 999999 !important;
     display: flex;
@@ -2658,12 +2659,28 @@ st.markdown(
         font-size: 15px;
     }
     
-    /* === METRICS === */
+    /* === METRICS (Light Mode) === */
     [data-testid="stMetric"] {
         background: #f8fafc;
         padding: 0.85rem 1rem !important;
         border-radius: 10px;
         border-left: 3px solid #3b82f6;
+    }
+    
+    /* === DARK MODE OVERRIDES === */
+    [data-theme="dark"] [data-testid="stMetric"],
+    .stApp[data-theme="dark"] [data-testid="stMetric"] {
+        background: #1e293b !important;
+    }
+    
+    /* Ensure inline HTML text inherits theme color in dark mode */
+    [data-theme="dark"] p,
+    [data-theme="dark"] span,
+    [data-theme="dark"] div,
+    .stApp[data-theme="dark"] p,
+    .stApp[data-theme="dark"] span,
+    .stApp[data-theme="dark"] div {
+        color: inherit;
     }
     
     .stTabs [data-baseweb="tab"] {
@@ -2788,7 +2805,7 @@ with tab_analysis:
         st.header("I. Input Parameters")
         st.markdown(
             """
-            <p style="font-size: 0.9rem; font-style: italic; color: #555;">
+            <p style="font-size: 0.9rem; font-style: italic; color: inherit; opacity: 0.7;">
             Define product <b>specifications</b> and <b>measured process performance</b> data for the selected characteristic.
             </p>
             """,
@@ -2985,7 +3002,7 @@ with tab_analysis:
         st.header("II. Calculated Results")
         st.markdown(
             """
-            <p style="font-size: 0.9rem; font-style: italic; color: #555;">
+            <p style="font-size: 0.9rem; font-style: italic; color: inherit; opacity: 0.7;">
             Key metrics based on the input data, including capability, spread, and recommended adjustments.
             </p>
             """,
@@ -3172,7 +3189,7 @@ with tab_data:
     st.header("Data Worksheet")
     st.markdown(
         """
-    <p style="font-size: 0.9rem; font-style: italic; color: #555;">
+    <p style="font-size: 0.9rem; font-style: italic; color: inherit; opacity: 0.7;">
     Import, edit, and analyze one characteristic with a clean part-by-part worksheet.
     </p>
     """,
@@ -3379,7 +3396,7 @@ with tab_viz:
     st.header("Visualization")
     st.markdown(
         """
-    <p style="font-size: 0.9rem; color: #666;">
+    <p style="font-size: 0.9rem; color: inherit; opacity: 0.7;">
     Interactive charts with zoom, pan, and export options. Use mouse wheel to zoom, drag to pan.
     </p>
     """,
