@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import io
 import datetime
 import re
+from functools import lru_cache
 from openpyxl import Workbook
 from openpyxl.styles import Font, Fill, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
@@ -273,7 +274,7 @@ class StatisticalCalculator:
             "target_index_value": inputs.get("target_index_value", 1.67),
             "target_index_type": inputs.get("target_index_type", "Cpk"),
             "confidence_level": inputs.get("confidence_level", 95.0),
-            "distribution": inputs.get("distribution", "Normal"),
+            "distribution": "Normal",
             "dp": inputs.get("decimal_places", 3),
             "hypothesis_type": inputs.get("hypothesis_type", "Two-Sided"),
             "mode": inputs.get("mode", "manual"),
@@ -405,6 +406,22 @@ class StatisticalCalculator:
 # --- Plotting Logic ---
 # Ported from 'plotManager'
 class PlotManager:
+    # Interactive plot configuration
+    PLOT_CONFIG = {
+        "displayModeBar": True,
+        "displaylogo": False,
+        "modeBarButtonsToAdd": ["drawline", "eraseshape"],
+        "modeBarButtonsToRemove": ["lasso2d", "select2d"],
+        "toImageButtonOptions": {
+            "format": "png",
+            "filename": "capability_chart",
+            "height": 600,
+            "width": 1000,
+            "scale": 2,
+        },
+        "scrollZoom": True,
+    }
+
     def generate_pdf_data(self, dist_type, params, x_min, x_max, points=200):
         x = np.linspace(x_min, x_max, points)
         y = np.zeros_like(x)
@@ -538,14 +555,26 @@ class PlotManager:
                 "title": "Value",
                 "range": [x_min, x_max],
                 "tickfont": {"size": 9},
+                "showspikes": True,  # Crosshair
+                "spikemode": "across",
+                "spikesnap": "cursor",
+                "spikecolor": "#666",
+                "spikethickness": 1,
+                "spikedash": "dot",
             },
             "yaxis": {
                 "title": "Density" if s > 0 else "",
                 "tickformat": ".2f" if s > 0 else "",
-                "fixedrange": True,
+                "fixedrange": False,  # Enable vertical zoom
                 "range": [0, max_pdf_y],
                 "tickfont": {"size": 9},
                 "showticklabels": s > 0,
+                "showspikes": True,  # Crosshair
+                "spikemode": "across",
+                "spikesnap": "cursor",
+                "spikecolor": "#666",
+                "spikethickness": 1,
+                "spikedash": "dot",
             },
             "legend": {
                 "font": {"size": 9},
@@ -553,11 +582,25 @@ class PlotManager:
                 "xanchor": "right",
                 "y": 0.98,
                 "yanchor": "top",
-                "bgcolor": "rgba(255,255,255,0.7)",
+                "bgcolor": "rgba(255,255,255,0.8)",
+                "bordercolor": "#ddd",
+                "borderwidth": 1,
             },
-            "margin": {"t": 40, "b": 40, "l": 50, "r": 20},
+            "margin": {"t": 50, "b": 50, "l": 50, "r": 20},
             "hovermode": "x unified",
+            "hoverlabel": {
+                "bgcolor": "white",
+                "font_size": 12,
+                "font_family": "sans-serif",
+                "bordercolor": "#444",
+            },
+            "dragmode": "zoom",  # Default to zoom mode
+            "modebar": {
+                "orientation": "v",
+                "bgcolor": "rgba(255,255,255,0.8)",
+            },
         }
+        # Note: PLOT_CONFIG is now defined at class level
 
         # Plot 1: Current Process
         fig_before = go.Figure()
@@ -1594,6 +1637,7 @@ class ExportManager:
     def export_selected_history(self, history_data):
         headers = [
             "Timestamp",
+            "Characteristic",
             "Measurement_Name",
             "Verdict",
             "Cp",
@@ -1706,6 +1750,9 @@ class ExportManager:
                     if entry.get("id")
                     else None,
                     extra_styles={"number_format": self.number_formats["dateTime"]},
+                ),
+                self._create_cell(
+                    entry.get("characteristic_name", entry.get("measurement_name", ""))
                 ),
                 self._create_cell(entry.get("measurement_name", "")),
                 self._create_cell(verdict, [verdict_style_key]),
@@ -1986,24 +2033,32 @@ class Chatbot:
                 "text": "Verify Tolerance Adequacy: Determine the minimum Required Tolerance (USL - LSL) necessary for the existing process variation (σ) to meet a desired capability index (Cpk, Ppk).",
             },
             {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Six Sigma (6σ) is a methodology focused on reducing process variation and improving quality to near perfection.",
+                "context": "Application Context & Usage Guide",
+                "text": "Use the Data Worksheet for part-by-part entry with DMC or serial number in one column and the measured value in the other column.",
+            },
+            {
+                "context": "Application Context & Usage Guide",
+                "text": "Use the Visualization tab to review the worksheet distribution histogram, box plot, capability curves, and control chart after analysis.",
             },
             {
                 "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "3σ Sigma Level has 2,700 PPM (Defects).",
+                "text": "For dimensional automotive manufacturing, Cp and Cpk are the core capability formulas used to compare process spread and centering against drawing tolerance.",
             },
             {
                 "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "4σ Sigma Level has 63 PPM (Defects).",
+                "text": "Cp = (USL - LSL) / 6σ measures potential capability if the process is perfectly centered.",
             },
             {
                 "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "5σ Sigma Level has 0.57 PPM (Defects).",
+                "text": "Cpk = min[(USL - x̄) / 3σ, (x̄ - LSL) / 3σ] measures actual capability with centering included.",
             },
             {
                 "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "6σ Sigma Level has 0.002 PPM (Defects).",
+                "text": "Required Shift (Δ) = Tm - x̄ shows how far the process mean must move to reach target.",
+            },
+            {
+                "context": "Concepts Overview: Six Sigma & Capability Indices",
+                "text": "Required Tolerance = Target Capability × 6σ estimates the minimum tolerance band needed for the current process variation.",
             },
             {
                 "context": "Concepts Overview: Six Sigma & Capability Indices",
@@ -2018,12 +2073,8 @@ class Chatbot:
                 "text": "Pp/Ppk (Long-Term Performance): These indices use overall process variation, including all potential sources of variation over an extended period. Ppk is always less than or equal to Cpk.",
             },
             {
-                "context": "Choosing a Distribution: Normal vs. Lognormal",
-                "text": "The Normal (or Gaussian) distribution is symmetric and bell-shaped. It's the most common distribution in quality control. Use When: The process data is symmetrically distributed around the mean. Measurements can theoretically be positive or negative (e.g., positional error). You are analyzing dimensional characteristics of manufactured parts.",
-            },
-            {
-                "context": "Choosing a Distribution: Normal vs. Lognormal",
-                "text": "The Lognormal distribution is skewed to the right and is bounded by zero on the left. Use When: The data cannot be negative (e.g., time to failure, concentration levels). The logarithm of the data follows a normal distribution. The process produces many values near the lower bound and a few much larger values.",
+                "context": "Choosing a Distribution",
+                "text": "This tool uses a normal dimensional-process assumption, which is the standard starting point for machined, ground, stamped, or molded automotive part characteristics once the process is stable.",
             },
             {
                 "context": "Additional Metric Definitions",
@@ -2135,6 +2186,453 @@ plotter = PlotManager()
 exporter = ExportManager()
 bot = Chatbot()
 
+
+def coerce_valid_numeric_values(values):
+    valid_values = []
+    for value in values:
+        if isinstance(value, (int, float, np.integer, np.floating)) and np.isfinite(
+            value
+        ):
+            valid_values.append(float(value))
+    return valid_values
+
+
+CHARACTERISTIC_FIELDS = [
+    "tm",
+    "lsl",
+    "usl",
+    "target_index_value",
+    "target_index_type",
+    "confidence_level",
+    "distribution",
+    "hypothesis_type",
+    "x_bar",
+    "s",
+    "n_samples",
+    "decimal_places",
+    "mode",
+    "measurement_name",
+    "description",
+    "raw_data",
+    "transform_dirty",
+]
+
+
+def default_characteristic_state(name="Characteristic 1"):
+    worksheet_df = pd.DataFrame({"Value": [None] * 20})
+    return {
+        "tm": 10.00,
+        "lsl": 9.90,
+        "usl": 10.10,
+        "target_index_value": 1.67,
+        "target_index_type": "Cpk",
+        "confidence_level": 95.0,
+        "distribution": "Normal",
+        "hypothesis_type": "Two-Sided",
+        "x_bar": 10.00,
+        "s": 0.015,
+        "n_samples": 30,
+        "decimal_places": 3,
+        "mode": "Enter Manually",
+        "measurement_name": name,
+        "description": "",
+        "raw_data": "",
+        "transform_dirty": False,
+        "results": {},
+        "summary": {},
+        "figs": {},
+        "worksheet_data": worksheet_df.copy(),
+        "original_worksheet_data": worksheet_df.copy(),
+    }
+
+
+def sanitize_characteristic_name(name):
+    cleaned = re.sub(r"\s+", " ", str(name or "").strip())
+    return cleaned[:80] if cleaned else ""
+
+
+def characteristic_from_flat_state(name):
+    state = default_characteristic_state(name)
+    for key in CHARACTERISTIC_FIELDS:
+        if key in st.session_state:
+            state[key] = st.session_state[key]
+    state["measurement_name"] = sanitize_characteristic_name(
+        st.session_state.get("measurement_name", name)
+    ) or name
+    state["results"] = dict(st.session_state.get("results", {}))
+    state["summary"] = dict(st.session_state.get("summary", {}))
+    state["figs"] = dict(st.session_state.get("figs", {}))
+    worksheet = st.session_state.get("worksheet_data")
+    if isinstance(worksheet, pd.DataFrame):
+        state["worksheet_data"] = worksheet.copy()
+    original = st.session_state.get("original_worksheet_data")
+    if isinstance(original, pd.DataFrame):
+        state["original_worksheet_data"] = original.copy()
+    else:
+        state["original_worksheet_data"] = state["worksheet_data"].copy()
+    return state
+
+
+def ensure_characteristics_state():
+    if "characteristics" not in st.session_state or not st.session_state.characteristics:
+        initial_name = sanitize_characteristic_name(
+            st.session_state.get("measurement_name", "Characteristic 1")
+        ) or "Characteristic 1"
+        st.session_state.characteristics = {
+            initial_name: characteristic_from_flat_state(initial_name)
+        }
+        st.session_state.active_characteristic_name = initial_name
+        st.session_state.loaded_characteristic_name = None
+        st.session_state.new_characteristic_name = ""
+    else:
+        if "active_characteristic_name" not in st.session_state:
+            st.session_state.active_characteristic_name = next(
+                iter(st.session_state.characteristics)
+            )
+        if "loaded_characteristic_name" not in st.session_state:
+            st.session_state.loaded_characteristic_name = None
+        if "new_characteristic_name" not in st.session_state:
+            st.session_state.new_characteristic_name = ""
+
+
+def sync_characteristic_from_global(name):
+    if name not in st.session_state.characteristics:
+        st.session_state.characteristics[name] = default_characteristic_state(name)
+    state = st.session_state.characteristics[name]
+    for key in CHARACTERISTIC_FIELDS:
+        state[key] = st.session_state.get(key, state.get(key))
+    state["measurement_name"] = sanitize_characteristic_name(
+        st.session_state.get("measurement_name", name)
+    ) or name
+    state["results"] = dict(st.session_state.get("results", {}))
+    state["summary"] = dict(st.session_state.get("summary", {}))
+    state["figs"] = dict(st.session_state.get("figs", {}))
+    worksheet = st.session_state.get("worksheet_data")
+    if isinstance(worksheet, pd.DataFrame):
+        state["worksheet_data"] = worksheet.copy()
+    original = st.session_state.get("original_worksheet_data")
+    if isinstance(original, pd.DataFrame):
+        state["original_worksheet_data"] = original.copy()
+
+
+def sync_global_from_characteristic(name):
+    if name not in st.session_state.characteristics:
+        st.session_state.characteristics[name] = default_characteristic_state(name)
+    state = st.session_state.characteristics[name]
+    for key in CHARACTERISTIC_FIELDS:
+        st.session_state[key] = state.get(key)
+    st.session_state.measurement_name = state.get("measurement_name", name)
+    st.session_state.results = dict(state.get("results", {}))
+    st.session_state.summary = dict(state.get("summary", {}))
+    st.session_state.figs = dict(state.get("figs", {}))
+    st.session_state.worksheet_data = state.get("worksheet_data").copy()
+    st.session_state.original_worksheet_data = state.get(
+        "original_worksheet_data", st.session_state.worksheet_data
+    ).copy()
+
+
+def sync_characteristic_state_machine():
+    ensure_characteristics_state()
+    active = st.session_state.active_characteristic_name
+    loaded = st.session_state.loaded_characteristic_name
+    if loaded is None:
+        sync_global_from_characteristic(active)
+        st.session_state.loaded_characteristic_name = active
+    elif loaded != active:
+        sync_characteristic_from_global(loaded)
+        sync_global_from_characteristic(active)
+        st.session_state.loaded_characteristic_name = active
+    else:
+        sync_characteristic_from_global(active)
+
+
+def simplify_to_single_characteristic():
+    ensure_characteristics_state()
+    active_name = st.session_state.get("active_characteristic_name")
+    if active_name not in st.session_state.characteristics:
+        active_name = next(iter(st.session_state.characteristics))
+    active_state = st.session_state.characteristics[active_name]
+    st.session_state.characteristics = {active_name: active_state}
+    st.session_state.active_characteristic_name = active_name
+    st.session_state.loaded_characteristic_name = active_name
+    sync_global_from_characteristic(active_name)
+
+
+def set_active_characteristic(name):
+    if name not in st.session_state.characteristics:
+        st.session_state.characteristics[name] = default_characteristic_state(name)
+    current_loaded = st.session_state.get("loaded_characteristic_name")
+    if current_loaded:
+        sync_characteristic_from_global(current_loaded)
+    st.session_state.active_characteristic_name = name
+    sync_global_from_characteristic(name)
+    st.session_state.loaded_characteristic_name = name
+
+
+def reset_active_characteristic_state():
+    active_name = st.session_state.get("active_characteristic_name", "Characteristic 1")
+    st.session_state.characteristics[active_name] = default_characteristic_state(
+        active_name
+    )
+    st.session_state.loaded_characteristic_name = None
+    for key in [
+        "tm",
+        "lsl",
+        "usl",
+        "target_index_value",
+        "target_index_type",
+        "confidence_level",
+        "distribution",
+        "hypothesis_type",
+        "x_bar",
+        "s",
+        "n_samples",
+        "decimal_places",
+        "mode",
+        "measurement_name",
+        "description",
+        "raw_data",
+        "worksheet_measurement_name",
+        "worksheet_description",
+        "worksheet_tm",
+        "worksheet_lsl",
+        "worksheet_usl",
+        "worksheet_data",
+        "original_worksheet_data",
+        "results",
+        "summary",
+        "figs",
+    ]:
+        st.session_state.pop(key, None)
+
+
+def create_characteristic(name):
+    new_name = sanitize_characteristic_name(name)
+    if not new_name:
+        return False, "Enter a characteristic name."
+    if new_name in st.session_state.characteristics:
+        return False, "That characteristic already exists."
+    st.session_state.characteristics[new_name] = default_characteristic_state(new_name)
+    set_active_characteristic(new_name)
+    st.session_state.new_characteristic_name = ""
+    return True, new_name
+
+
+def delete_active_characteristic():
+    if len(st.session_state.characteristics) <= 1:
+        return False, "At least one characteristic must remain."
+    active = st.session_state.active_characteristic_name
+    st.session_state.characteristics.pop(active, None)
+    next_name = next(iter(st.session_state.characteristics))
+    set_active_characteristic(next_name)
+    return True, next_name
+
+
+def get_max_parts_count():
+    max_count = 0
+    for state in st.session_state.characteristics.values():
+        worksheet = state.get("worksheet_data")
+        if isinstance(worksheet, pd.DataFrame):
+            max_count = max(max_count, len(worksheet))
+    return max(max_count, len(st.session_state.get("part_ids", [])), 12)
+
+
+def ensure_part_ids():
+    target_len = get_max_parts_count()
+    part_ids = list(st.session_state.get("part_ids", []))
+    if len(part_ids) < target_len:
+        part_ids.extend([""] * (target_len - len(part_ids)))
+    st.session_state.part_ids = part_ids[:target_len]
+
+
+def build_characteristic_matrix():
+    ensure_part_ids()
+    row_count = len(st.session_state.part_ids)
+    matrix = {"DMC": st.session_state.part_ids[:row_count]}
+    for name, state in st.session_state.characteristics.items():
+        worksheet = state.get("worksheet_data")
+        values = []
+        if isinstance(worksheet, pd.DataFrame) and "Value" in worksheet.columns:
+            values = worksheet["Value"].tolist()
+        padded = values + [None] * max(0, row_count - len(values))
+        matrix[name] = padded[:row_count]
+    return pd.DataFrame(matrix)
+
+
+def save_characteristic_matrix(matrix_df):
+    cleaned_df = matrix_df.copy()
+    st.session_state.part_ids = cleaned_df["DMC"].fillna("").astype(str).tolist()
+    for name in list(st.session_state.characteristics.keys()):
+        if name not in cleaned_df.columns:
+            st.session_state.characteristics.pop(name, None)
+    for column in cleaned_df.columns:
+        if column == "DMC":
+            continue
+        if column not in st.session_state.characteristics:
+            st.session_state.characteristics[column] = default_characteristic_state(column)
+        values = cleaned_df[column].tolist()
+        worksheet_df = pd.DataFrame({"Value": values})
+        state = st.session_state.characteristics[column]
+        state["worksheet_data"] = worksheet_df
+        state["raw_data"] = ", ".join(
+            map(str, worksheet_df["Value"].dropna().tolist())
+        )
+        if not state.get("transform_dirty", False):
+            state["original_worksheet_data"] = worksheet_df.copy()
+    if st.session_state.active_characteristic_name not in st.session_state.characteristics:
+        st.session_state.active_characteristic_name = next(iter(st.session_state.characteristics))
+    set_active_characteristic(st.session_state.active_characteristic_name)
+
+
+def build_characteristic_metadata():
+    rows = []
+    for name, state in st.session_state.characteristics.items():
+        rows.append(
+            {
+                "Characteristic": name,
+                "Description": state.get("description", ""),
+                "Target Mean": state.get("tm", 10.0),
+                "LSL": state.get("lsl", 9.9),
+                "USL": state.get("usl", 10.1),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def save_characteristic_metadata(metadata_df):
+    updated = {}
+    for _, row in metadata_df.iterrows():
+        raw_name = sanitize_characteristic_name(row.get("Characteristic"))
+        if not raw_name:
+            continue
+        prior_state = st.session_state.characteristics.get(
+            raw_name, default_characteristic_state(raw_name)
+        )
+        prior_state["measurement_name"] = raw_name
+        prior_state["description"] = str(row.get("Description", "") or "")
+        prior_state["tm"] = row.get("Target Mean", prior_state["tm"])
+        prior_state["lsl"] = row.get("LSL", prior_state["lsl"])
+        prior_state["usl"] = row.get("USL", prior_state["usl"])
+        updated[raw_name] = prior_state
+    if updated:
+        st.session_state.characteristics = updated
+        if st.session_state.active_characteristic_name not in updated:
+            st.session_state.active_characteristic_name = next(iter(updated))
+        set_active_characteristic(st.session_state.active_characteristic_name)
+
+
+def run_characteristic_analysis(characteristic_name):
+    state = st.session_state.characteristics[characteristic_name]
+    analysis_inputs = dict(state)
+    if state.get("mode") == "Use Data Worksheet":
+        worksheet = state.get("worksheet_data")
+        values = []
+        if isinstance(worksheet, pd.DataFrame) and "Value" in worksheet.columns:
+            values = worksheet["Value"].dropna().tolist()
+        analysis_inputs["raw_data"] = ", ".join(map(str, values))
+        analysis_inputs["mode"] = "import"
+    else:
+        analysis_inputs["mode"] = "manual"
+
+    results = calc.calculate(analysis_inputs)
+    summary = {}
+    figs = {}
+    if not results.get("error"):
+        summary = get_summary_panel_content(results)
+        results["verdict"] = summary.get("verdict", "N/A")
+        fig_before, fig_after, fig_hist = plotter.update_plots(results)
+        figs = {"before": fig_before, "after": fig_after, "hist": fig_hist}
+    state["results"] = results
+    state["summary"] = summary
+    state["figs"] = figs
+    return results, summary, figs
+
+
+def analyze_all_characteristics():
+    summaries = []
+    for name in st.session_state.characteristics:
+        results, summary, _ = run_characteristic_analysis(name)
+        summaries.append(
+            {
+                "Characteristic": name,
+                "Mode": st.session_state.characteristics[name].get("mode"),
+                "Samples": results.get("n_samples"),
+                "Cpk/Ppk": results.get("CpkCurrent", np.nan),
+                "Verdict": summary.get("verdict", results.get("error", "Error")),
+            }
+        )
+    active_name = st.session_state.active_characteristic_name
+    set_active_characteristic(active_name)
+    st.session_state.batch_results_df = pd.DataFrame(summaries)
+
+
+@lru_cache(maxsize=64)
+def calculate_descriptive_stats(values):
+    data_array = np.asarray(values, dtype=float)
+    if data_array.size < 2:
+        return None
+
+    q1, q2, q3 = np.percentile(data_array, [25, 50, 75])
+    return {
+        "count": int(data_array.size),
+        "mean": float(np.mean(data_array)),
+        "std": float(np.std(data_array, ddof=1)),
+        "min": float(np.min(data_array)),
+        "max": float(np.max(data_array)),
+        "range": float(np.max(data_array) - np.min(data_array)),
+        "q1": float(q1),
+        "q2": float(q2),
+        "q3": float(q3),
+        "iqr": float(q3 - q1),
+    }
+
+
+def get_outlier_bounds(stats_summary, method):
+    if method == "IQR (1.5×)":
+        return (
+            stats_summary["q1"] - 1.5 * stats_summary["iqr"],
+            stats_summary["q3"] + 1.5 * stats_summary["iqr"],
+        )
+
+    sigma_multiplier = 3 if method == "3-Sigma" else 2
+    return (
+        stats_summary["mean"] - sigma_multiplier * stats_summary["std"],
+        stats_summary["mean"] + sigma_multiplier * stats_summary["std"],
+    )
+
+
+def set_worksheet_data(values):
+    worksheet_df = pd.DataFrame({"Value": list(values)})
+    st.session_state.worksheet_data = worksheet_df
+    st.session_state.raw_data = ", ".join(map(str, worksheet_df["Value"].dropna()))
+    st.session_state.original_worksheet_data = worksheet_df.copy()
+    st.session_state.transform_dirty = False
+    active = st.session_state.get("active_characteristic_name")
+    if active:
+        sync_characteristic_from_global(active)
+
+
+def apply_data_transformation(values, transform_type, **kwargs):
+    data_arr = np.asarray(values, dtype=float)
+
+    if transform_type == "Review & Remove Outliers (IQR)":
+        q1, q3 = np.percentile(data_arr, [25, 75])
+        iqr = q3 - q1
+        mask = (data_arr >= q1 - 1.5 * iqr) & (data_arr <= q3 + 1.5 * iqr)
+        return data_arr[mask], None
+
+    if transform_type == "Gauge Rounding":
+        return np.round(data_arr, kwargs.get("round_decimals", 3)), None
+
+    if transform_type == "Offset Correction":
+        return data_arr + kwargs.get("shift_value", 0.0), None
+
+    if transform_type == "Unit Conversion / Scale":
+        return data_arr * kwargs.get("scale_factor", 1.0), None
+
+    return None, "Select a transformation before applying changes."
+
+
 # Set page configuration
 st.set_page_config(
     page_title="Process Capability Analyzer",
@@ -2147,19 +2645,47 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-    /* Hide Deploy button */
+    /* === HIDE STREAMLIT DEFAULTS === */
     .stDeployButton {display: none !important;}
-    /* Hide hamburger menu */
     #MainMenu {display: none !important;}
-    /* Hide header completely and remove space */
     header {display: none !important;}
-    /* Hide footer */
     footer {display: none !important;}
-    /* Reduce top padding of main content */
-    .stMainBlockContainer {padding-top: 1rem !important;}
-    .block-container {padding-top: 1rem !important;}
-    /* Remove any extra top margin in the app view */
-    .stAppViewContainer {margin-top: -2rem;}
+    .stMainBlockContainer {padding-top: 0.75rem !important;}
+    .block-container {padding-top: 0.75rem !important; padding-left: 1.25rem !important; padding-right: 1.25rem !important;}
+    
+    html, body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        font-size: 15px;
+    }
+    
+    /* === METRICS === */
+    [data-testid="stMetric"] {
+        background: #f8fafc;
+        padding: 0.85rem 1rem !important;
+        border-radius: 10px;
+        border-left: 3px solid #3b82f6;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.75rem 1rem !important;
+    }
+    
+    .stButton > button,
+    .stDownloadButton > button {
+        min-height: 2.8rem;
+    }
+    
+    [data-testid="stDataFrame"] {
+        border-radius: 8px !important;
+    }
+    
+    div[data-testid="stHorizontalBlock"] {
+        align-items: stretch;
+    }
+    
+    .stSelectbox, .stNumberInput, .stTextInput, .stRadio {
+        margin-bottom: 0.25rem;
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -2184,6 +2710,8 @@ def init_session_state(clear_form=False):
         "mode": "Enter Manually",
         "measurement_name": "",
         "raw_data": "",
+        "transform_dirty": False,
+        "last_uploaded_signature": None,
     }
 
     if "history" not in st.session_state:
@@ -2191,6 +2719,12 @@ def init_session_state(clear_form=False):
 
     if "chat_messages" not in st.session_state:
         st.session_state.chat_messages = []
+
+    if "part_ids" not in st.session_state:
+        st.session_state.part_ids = []
+
+    if "batch_results_df" not in st.session_state:
+        st.session_state.batch_results_df = pd.DataFrame()
 
     if "results" not in st.session_state:
         st.session_state.results = {}
@@ -2204,12 +2738,23 @@ def init_session_state(clear_form=False):
         st.session_state.mascot_message = None
 
     if clear_form:
+        active_name = sanitize_characteristic_name(
+            st.session_state.get("active_characteristic_name", "Characteristic 1")
+        ) or "Characteristic 1"
         st.session_state.results = {}
         st.session_state.summary = {}
         st.session_state.figs = {}
         st.session_state.chat_messages = []
+        st.session_state.part_ids = []
+        st.session_state.batch_results_df = pd.DataFrame()
         for key, value in defaults.items():
             st.session_state[key] = value
+        st.session_state.measurement_name = active_name
+        st.session_state.characteristics = {
+            active_name: default_characteristic_state(active_name)
+        }
+        st.session_state.active_characteristic_name = active_name
+        st.session_state.loaded_characteristic_name = None
     else:
         for key, value in defaults.items():
             if key not in st.session_state:
@@ -2217,6 +2762,8 @@ def init_session_state(clear_form=False):
 
 
 init_session_state()
+simplify_to_single_characteristic()
+sync_global_from_characteristic(st.session_state.active_characteristic_name)
 
 # --- Main App UI ---
 st.title("Statistical Process Capability & Optimization Tool")
@@ -2232,196 +2779,162 @@ with tab_analysis:
     if st.session_state.results and st.session_state.results.get("error"):
         st.error(f"**Analysis Error:** {st.session_state.results['error']}")
 
-    main_cols = st.columns([1, 1, 1])
+    active_characteristic = st.session_state.active_characteristic_name
+
+    main_cols = st.columns([1.2, 1, 1])
 
     # --- Column 1: Input Parameters ---
     with main_cols[0]:
         st.header("I. Input Parameters")
+        st.markdown(
+            """
+            <p style="font-size: 0.9rem; font-style: italic; color: #555;">
+            Define product <b>specifications</b> and <b>measured process performance</b> data for the selected characteristic.
+            </p>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        with st.form(key="analysis_form"):
-            st.markdown(
-                """
-                <p style="font-size: 0.9rem; font-style: italic; color: #555;">
-                Define product <b>specifications</b> and <b>measured process performance</b> data.
-                </p>
-                """,
-                unsafe_allow_html=True,
+        with st.container(border=True):
+            st.subheader("1. Specifications")
+            spec_cols = st.columns(3)
+            with spec_cols[0]:
+                st.number_input(
+                    "Tₘ (Target Mean)",
+                    step=0.01,
+                    key="tm",
+                    help="The desired, ideal center of your process distribution.",
+                )
+            with spec_cols[1]:
+                st.number_input(
+                    "LSL (Lower Spec)",
+                    step=0.01,
+                    key="lsl",
+                    help="The minimum acceptable value for your measurement.",
+                )
+            with spec_cols[2]:
+                st.number_input(
+                    "USL (Upper Spec)",
+                    step=0.01,
+                    key="usl",
+                    help="The maximum acceptable value for your measurement.",
+                )
+
+        with st.container(border=True):
+            st.subheader("2. Data & Goals")
+            st.radio(
+                "Data Input Mode",
+                ["Enter Manually", "Use Data Worksheet"],
+                key="mode",
+                horizontal=True,
             )
 
-            with st.container(border=True):
-                st.subheader("1. Specifications")
-                spec_cols = st.columns(3)
-                with spec_cols[0]:
+            if st.session_state.mode == "Enter Manually":
+                data_cols = st.columns(2)
+                with data_cols[0]:
                     st.number_input(
-                        "Tₘ (Target Mean)",
+                        "x̄ (Measured Mean)",
                         step=0.01,
-                        key="tm",
-                        help="The desired, ideal center of your process distribution.",
+                        key="x_bar",
+                        help="The average value calculated from your sample data.",
                     )
-                with spec_cols[1]:
+                with data_cols[1]:
                     st.number_input(
-                        "LSL (Lower Spec)",
-                        step=0.01,
-                        key="lsl",
-                        help="The minimum acceptable value for your measurement.",
+                        "σ (Std Dev)",
+                        step=0.001,
+                        min_value=0.0,
+                        format="%.5f",
+                        key="s",
+                        help="A measure of the amount of variation or dispersion of a set of values.",
                     )
-                with spec_cols[2]:
-                    st.number_input(
-                        "USL (Upper Spec)",
-                        step=0.01,
-                        key="usl",
-                        help="The maximum acceptable value for your measurement.",
+            else:
+                active_count = len(
+                    coerce_valid_numeric_values(
+                        st.session_state.worksheet_data["Value"].dropna().tolist()
                     )
-
-            with st.container(border=True):
-                st.subheader("2. Data & Goals")
-                st.radio(
-                    "Data Input Mode",
-                    ["Enter Manually", "Use Data Worksheet"],
-                    key="mode",
-                    horizontal=True,
+                )
+                st.caption(
+                    f"Worksheet mode will analyze `{active_characteristic}` using {active_count} valid data point(s)."
                 )
 
-                if st.session_state.mode == "Enter Manually":
-                    data_cols = st.columns(2)
-                    with data_cols[0]:
-                        st.number_input(
-                            "x̄ (Measured Mean)",
-                            step=0.01,
-                            key="x_bar",
-                            help="The average value calculated from your sample data.",
-                        )
-                    with data_cols[1]:
-                        st.number_input(
-                            "σ (Std Dev)",
-                            step=0.001,
-                            min_value=0.0,
-                            format="%.5f",
-                            key="s",
-                            help="A measure of the amount of variation or dispersion of a set of values.",
-                        )
+            st.number_input(
+                "Target Index",
+                step=0.01,
+                key="target_index_value",
+                help="The minimum capability value (e.g., Cpk 1.67) you aim for your process to achieve.",
+            )
+            st.selectbox(
+                "Index Type",
+                ["Cpk", "Cmk", "Ppk"],
+                key="target_index_type",
+                help="Capability Index Type: Cpk (short-term) or Ppk (long-term).",
+            )
 
-                goal_cols = st.columns(2)
-                with goal_cols[0]:
-                    st.number_input(
-                        "Target Index",
-                        step=0.01,
-                        key="target_index_value",
-                        help="The minimum capability value (e.g., Cpk 1.67) you aim for your process to achieve.",
-                    )
-                with goal_cols[1]:
-                    st.selectbox(
-                        "Index Type",
-                        ["Cpk", "Cmk", "Ppk"],
-                        key="target_index_type",
-                        help="Capability Index Type: Cpk (short-term) or Ppk (long-term).",
-                    )
-
-            with st.container(border=True):
-                st.subheader("3. Statistical Settings")
-                stat_cols_1 = st.columns(4)
-                with stat_cols_1[0]:
-                    st.number_input(
-                        "n (Samples)",
-                        step=1,
-                        min_value=2,
-                        key="n_samples",
-                        help="The number of data points in your sample. Must be >= 2.",
-                    )
-                with stat_cols_1[1]:
-                    st.number_input(
-                        "CL (%)",
-                        min_value=1.0,
-                        max_value=99.9,
-                        step=0.1,
-                        key="confidence_level",
-                        help="Confidence Level for the Mean's Confidence Interval. 95% is common.",
-                    )
-                with stat_cols_1[2]:
-                    st.number_input(
-                        "Decimals",
-                        min_value=1,
-                        max_value=6,
-                        step=1,
-                        key="decimal_places",
-                    )
-                with stat_cols_1[3]:
-                    st.selectbox(
-                        "Distribution", ["Normal", "Lognormal"], key="distribution"
-                    )
-
-                st.selectbox(
-                    "Hypothesis (μ vs Tₘ)",
-                    options=["Two-Sided", "Upper-Sided", "Lower-Sided"],
-                    format_func=lambda x: (
-                        f"{x} (μ ≠ Tₘ)"
-                        if x == "Two-Sided"
-                        else (
-                            f"{x} (μ > Tₘ)" if x == "Upper-Sided" else f"{x} (μ < Tₘ)"
-                        )
-                    ),
-                    key="hypothesis_type",
+        with st.container(border=True):
+            st.subheader("3. Statistical Settings")
+            stat_cols_1 = st.columns(2)
+            with stat_cols_1[0]:
+                st.number_input(
+                    "n (Samples)",
+                    step=1,
+                    min_value=2,
+                    key="n_samples",
+                    help="The number of data points in your sample. Must be >= 2.",
+                )
+                st.number_input(
+                    "CL (%)",
+                    min_value=1.0,
+                    max_value=99.9,
+                    step=0.1,
+                    key="confidence_level",
+                    help="Confidence Level for the Mean's Confidence Interval. 95% is common.",
+                )
+            with stat_cols_1[1]:
+                st.number_input(
+                    "Decimals",
+                    min_value=1,
+                    max_value=6,
+                    step=1,
+                    key="decimal_places",
+                )
+                st.text_input(
+                    "Distribution",
+                    value="Normal (automotive dimensional data default)",
+                    disabled=True,
+                    help="Dimensional capability calculations in this tool use the standard normal-process assumption.",
                 )
 
-            # Form submission
-            submitted = st.form_submit_button(
-                "ANALYZE & PLOT", use_container_width=True, type="primary"
+            st.selectbox(
+                "Hypothesis (μ vs Tₘ)",
+                options=["Two-Sided", "Upper-Sided", "Lower-Sided"],
+                format_func=lambda x: (
+                    f"{x} (μ ≠ Tₘ)"
+                    if x == "Two-Sided"
+                    else (f"{x} (μ > Tₘ)" if x == "Upper-Sided" else f"{x} (μ < Tₘ)")
+                ),
+                key="hypothesis_type",
             )
 
         # Other buttons outside the form
         btn_cols = st.columns(2)
         with btn_cols[0]:
-            # Export Button - must be explicit boolean for disabled parameter
-            export_disabled = bool(
-                not st.session_state.results or st.session_state.results.get("error")
+            submitted = st.button(
+                "ANALYZE & PLOT", use_container_width=True, type="primary"
             )
-            if not export_disabled:
-                try:
-                    export_buffer = exporter.export_current_results(
-                        st.session_state.results, st.session_state.summary
-                    )
-                    st.download_button(
-                        label="EXPORT XLSX",
-                        data=export_buffer,
-                        file_name=f"Capability_Report_{st.session_state.measurement_name or 'Current'}_{datetime.date.today()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        disabled=export_disabled,
-                    )
-                except Exception as e:
-                    import traceback
-
-                    traceback.print_exc()  # Print full traceback to terminal
-                    st.error(f"Could not generate export: {e}")
-                    st.button("EXPORT XLSX", use_container_width=True, disabled=True)
-            else:
-                st.button(
-                    "EXPORT XLSX",
-                    use_container_width=True,
-                    disabled=True,
-                    help="Run a valid analysis to enable export.",
-                )
-
         with btn_cols[1]:
-            # Reset Button
-            if st.button("RESET", use_container_width=True):
-                init_session_state(clear_form=True)
-                st.rerun()
-
+            st.button(
+                "RESET ACTIVE",
+                use_container_width=True,
+                on_click=reset_active_characteristic_state,
+            )
     # --- Analysis Logic ---
     if submitted:
-        # User clicked Analyze, so we run calculations
-        st.session_state.results = calc.calculate(st.session_state)
+        # User clicked Analyze, so we run calculations for the active characteristic
+        st.session_state.results, st.session_state.summary, st.session_state.figs = (
+            run_characteristic_analysis(active_characteristic)
+        )
 
         if not st.session_state.results.get("error"):
-            # Get summary
-            st.session_state.summary = get_summary_panel_content(
-                st.session_state.results
-            )
-            st.session_state.results["verdict"] = st.session_state.summary.get(
-                "verdict", "N/A"
-            )
-
             # Update Sigma Assistant mascot state based on verdict
             verdict = st.session_state.summary.get("verdict", "")
             cp_value = st.session_state.results.get("Cp", 1.0)
@@ -2442,6 +2955,7 @@ with tab_analysis:
             # Save to history
             history_entry = st.session_state.results.copy()
             history_entry["id"] = datetime.datetime.now().isoformat()
+            history_entry["characteristic_name"] = active_characteristic
             if "importedData" in history_entry:
                 del history_entry["importedData"]  # Don't save large data array
             st.session_state.history.insert(0, history_entry)
@@ -2456,11 +2970,13 @@ with tab_analysis:
                 "after": fig_after,
                 "hist": fig_hist,
             }
+            sync_characteristic_from_global(active_characteristic)
 
         else:
             # Clear previous results if new run has errors
             st.session_state.summary = {}
             st.session_state.figs = {}
+            sync_characteristic_from_global(active_characteristic)
 
         st.rerun()  # Rerun to display the new results
 
@@ -2654,42 +3170,431 @@ with tab_analysis:
 # --- Tab 2: Data Worksheet ---
 with tab_data:
     st.header("Data Worksheet")
-    st.text_input(
-        "Measurement Name",
-        key="measurement_name",
-        placeholder="e.g., Diameter_Part_A",
-        help="A descriptive name for your analysis (e.g., 'Diameter_Part_A'). This will be saved in the history.",
+    st.markdown(
+        """
+    <p style="font-size: 0.9rem; font-style: italic; color: #555;">
+    Import, edit, and analyze one characteristic with a clean part-by-part worksheet.
+    </p>
+    """,
+        unsafe_allow_html=True,
     )
-    st.text_area(
-        "Paste Raw Data (comma, space, or newline separated)",
-        key="raw_data",
-        height=500,
-        placeholder="e.g., 9.98, 10.01, 9.99, ...",
-        help="This data will be used when you select 'Use Data Worksheet' on the Analysis tab.",
-    )
-    if st.session_state.raw_data:
-        data_points = calc.parse_raw_data(st.session_state.raw_data)
-        st.info(f"Detected **{len(data_points)}** valid numeric data points.")
-        if len(data_points) < 2:
-            st.warning("At least 2 data points are required for calculation.")
+
+    active_characteristic = st.session_state.active_characteristic_name
+    active_state = st.session_state.characteristics[active_characteristic]
+
+    if "worksheet_measurement_name" not in st.session_state:
+        st.session_state.worksheet_measurement_name = active_state.get(
+            "measurement_name", st.session_state.get("measurement_name", "")
+        )
+    if "worksheet_description" not in st.session_state:
+        st.session_state.worksheet_description = active_state.get(
+            "description", st.session_state.get("description", "")
+        )
+    if "worksheet_tm" not in st.session_state:
+        st.session_state.worksheet_tm = active_state.get(
+            "tm", st.session_state.get("tm", 10.0)
+        )
+    if "worksheet_lsl" not in st.session_state:
+        st.session_state.worksheet_lsl = active_state.get(
+            "lsl", st.session_state.get("lsl", 9.9)
+        )
+    if "worksheet_usl" not in st.session_state:
+        st.session_state.worksheet_usl = active_state.get(
+            "usl", st.session_state.get("usl", 10.1)
+        )
+
+    # --- Measurement Name ---
+    data_header_cols = st.columns([2, 1, 1, 1])
+    with data_header_cols[0]:
+        st.text_input(
+            "Measurement Label",
+            key="worksheet_measurement_name",
+            placeholder="e.g., Diameter_Part_A",
+            help="A descriptive label used in exports and history for the active characteristic.",
+        )
+    with data_header_cols[1]:
+        st.text_input(
+            "Description",
+            key="worksheet_description",
+            placeholder="e.g., Outer diameter before plating",
+            help="Short engineering note for this characteristic.",
+        )
+    with data_header_cols[2]:
+        st.number_input("Target Mean", key="worksheet_tm", step=0.01)
+    with data_header_cols[3]:
+        tol_cols = st.columns(2)
+        with tol_cols[0]:
+            st.number_input("LSL", key="worksheet_lsl", step=0.01)
+        with tol_cols[1]:
+            st.number_input("USL", key="worksheet_usl", step=0.01)
+
+    active_state["measurement_name"] = st.session_state.worksheet_measurement_name
+    active_state["description"] = st.session_state.worksheet_description
+    active_state["tm"] = st.session_state.worksheet_tm
+    active_state["lsl"] = st.session_state.worksheet_lsl
+    active_state["usl"] = st.session_state.worksheet_usl
+
+    # --- File Upload Section ---
+    with st.container(border=True):
+        st.subheader("1. Data Import")
+        upload_cols = st.columns([2, 1, 1])
+
+        with upload_cols[0]:
+            uploaded_file = st.file_uploader(
+                "Upload CSV or Excel file",
+                type=["csv", "xlsx", "xls"],
+                help="Drag and drop or click to upload. The first numeric column is used as the measurement values.",
+            )
+
+        with upload_cols[1]:
+            st.markdown("**Or paste data:**")
+            paste_mode = st.radio(
+                "Paste format",
+                ["Comma separated", "Newline separated", "Tab separated"],
+                horizontal=False,
+                label_visibility="collapsed",
+            )
+
+        with upload_cols[2]:
+            st.markdown("**Quick actions:**")
+            if st.button("Clear Data", use_container_width=True):
+                st.session_state.last_uploaded_signature = None
+                set_worksheet_data([None] * 20)
+                st.rerun()
+            if st.button("Sample Data", use_container_width=True):
+                # Generate sample normal data
+                sample_rng = np.random.default_rng(42)
+                sample_data = sample_rng.normal(10.0, 0.02, 50).round(4)
+                st.session_state.last_uploaded_signature = None
+                set_worksheet_data(sample_data)
+                st.rerun()
+
+    # Process uploaded file
+    if uploaded_file is not None:
+        upload_signature = (
+            uploaded_file.name,
+            getattr(uploaded_file, "size", None),
+        )
+        if st.session_state.get("last_uploaded_signature") != upload_signature:
+            try:
+                if uploaded_file.name.endswith(".csv"):
+                    df_uploaded = pd.read_csv(uploaded_file)
+                else:
+                    df_uploaded = pd.read_excel(uploaded_file)
+
+                potential_dmc_cols = [
+                    column
+                    for column in df_uploaded.columns
+                    if "dmc" in str(column).lower()
+                    or "serial" in str(column).lower()
+                    or "part" in str(column).lower()
+                ]
+                if potential_dmc_cols:
+                    dmc_values = (
+                        df_uploaded[potential_dmc_cols[0]].fillna("").astype(str).tolist()
+                    )
+                    st.session_state.part_ids = dmc_values
+
+                # Use first numeric column for the single worksheet characteristic
+                numeric_cols = df_uploaded.select_dtypes(include=[np.number]).columns
+                if len(numeric_cols) > 0:
+                    values = df_uploaded[numeric_cols[0]].tolist()
+                    st.session_state.characteristics[active_characteristic]["worksheet_data"] = pd.DataFrame(
+                        {"Value": values}
+                    )
+                    st.session_state.characteristics[active_characteristic]["original_worksheet_data"] = pd.DataFrame(
+                        {"Value": values}
+                    )
+                    st.session_state.characteristics[active_characteristic]["raw_data"] = ", ".join(
+                        map(str, pd.Series(values).dropna().tolist())
+                    )
+                    st.session_state.characteristics[active_characteristic]["transform_dirty"] = False
+                    st.session_state.last_uploaded_signature = upload_signature
+                    sync_global_from_characteristic(active_characteristic)
+                    st.success(
+                        f"✅ Imported {len(pd.Series(values).dropna())} values from `{numeric_cols[0]}`"
+                    )
+                else:
+                    st.error("No numeric columns found in the uploaded file.")
+            except Exception as e:
+                st.error(f"Error reading file: {e}")
+
+    # --- Spreadsheet Data Grid ---
+    grid_stats_cols = st.columns([2, 1])
+
+    with grid_stats_cols[0]:
+        st.subheader("2. Parts Worksheet")
+        st.caption(
+            "Each row is one part. Use `DMC` for the part identifier and `Value` for the measured actual dimension."
+        )
+        ensure_part_ids()
+        value_series = st.session_state.worksheet_data["Value"].tolist()
+        row_count = max(len(st.session_state.part_ids), len(value_series), 20)
+        padded_part_ids = list(st.session_state.part_ids) + [""] * max(
+            0, row_count - len(st.session_state.part_ids)
+        )
+        padded_values = value_series + [None] * max(0, row_count - len(value_series))
+        matrix_df = pd.DataFrame({"DMC": padded_part_ids[:row_count], "Value": padded_values[:row_count]})
+        column_config = {
+            "DMC": st.column_config.TextColumn(
+                "DMC / Serial Number",
+                help="Data Matrix Code or unique part identifier.",
+            ),
+            "Value": st.column_config.NumberColumn(
+                st.session_state.measurement_name or "Measurement Value",
+                help=st.session_state.get("description", "") or "Measured actual value.",
+                format="%.4f",
+                step=0.0001,
+            ),
+        }
+
+        edited_matrix_df = st.data_editor(
+            matrix_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            height=430,
+            hide_index=True,
+            column_config=column_config,
+            key="parts_matrix_editor",
+        )
+        st.session_state.part_ids = edited_matrix_df["DMC"].fillna("").astype(str).tolist()
+        current_column = edited_matrix_df["Value"]
+        valid_values = current_column.dropna().tolist()
+        st.session_state.worksheet_data = pd.DataFrame({"Value": current_column.tolist()})
+        st.session_state.raw_data = ", ".join(map(str, valid_values))
+        if not st.session_state.get("transform_dirty", False):
+            st.session_state.original_worksheet_data = st.session_state.worksheet_data.copy()
+        sync_characteristic_from_global(active_characteristic)
+
+    # --- Status bar ---
+    valid_data = coerce_valid_numeric_values(valid_values)
+    if valid_data:
+        st.success(
+            f"✅ **{len(valid_data)}** valid data points ready for analysis for `{st.session_state.active_characteristic_name}`. Go to 'Analysis & Report' and select 'Use Data Worksheet' mode."
+        )
 
 
 # --- Tab 3: Visualization ---
 with tab_viz:
-    st.header("Capability Visualization")
+    st.header("Visualization")
+    st.markdown(
+        """
+    <p style="font-size: 0.9rem; color: #666;">
+    Interactive charts with zoom, pan, and export options. Use mouse wheel to zoom, drag to pan.
+    </p>
+    """,
+        unsafe_allow_html=True,
+    )
+
+    # Chart settings
+    show_annotations = st.checkbox(
+        "Show Annotations", value=True, key="show_annotations"
+    )
 
     figs = st.session_state.figs
+    res = st.session_state.results
+    viz_data = []
+    if "worksheet_data" in st.session_state and isinstance(
+        st.session_state.worksheet_data, pd.DataFrame
+    ):
+        viz_data = coerce_valid_numeric_values(
+            st.session_state.worksheet_data["Value"].dropna().tolist()
+        )
+
+    if len(viz_data) >= 2:
+        st.subheader("Worksheet Distribution")
+        preview_cols = st.columns(2)
+
+        with preview_cols[0]:
+            fig_hist_preview = go.Figure()
+            fig_hist_preview.add_trace(
+                go.Histogram(
+                    x=viz_data,
+                    nbinsx=20,
+                    marker_color="#3B82F6",
+                    opacity=0.75,
+                    name="Data",
+                )
+            )
+            fig_hist_preview.update_layout(
+                title="Distribution Histogram",
+                height=300,
+                margin=dict(l=40, r=20, t=50, b=40),
+                showlegend=False,
+                template="plotly_white",
+            )
+            st.plotly_chart(
+                fig_hist_preview,
+                use_container_width=True,
+                config=PlotManager.PLOT_CONFIG,
+            )
+
+        with preview_cols[1]:
+            fig_box = go.Figure()
+            fig_box.add_trace(
+                go.Box(
+                    y=viz_data,
+                    marker_color="#10B981",
+                    boxpoints="outliers",
+                    name="Values",
+                )
+            )
+            fig_box.update_layout(
+                title="Box Plot",
+                height=300,
+                margin=dict(l=40, r=20, t=50, b=40),
+                showlegend=False,
+                template="plotly_white",
+            )
+            st.plotly_chart(
+                fig_box, use_container_width=True, config=PlotManager.PLOT_CONFIG
+            )
 
     if figs and figs.get("before") and figs.get("after"):
         viz_cols = st.columns(2)
         with viz_cols[0]:
-            st.plotly_chart(figs["before"], use_container_width=True)
+            st.plotly_chart(
+                figs["before"], use_container_width=True, config=PlotManager.PLOT_CONFIG
+            )
         with viz_cols[1]:
-            st.plotly_chart(figs["after"], use_container_width=True)
+            st.plotly_chart(
+                figs["after"], use_container_width=True, config=PlotManager.PLOT_CONFIG
+            )
 
         if figs.get("hist"):
-            st.header("Data Distribution Analysis (from Import)")
-            st.plotly_chart(figs["hist"], use_container_width=True)
+            st.subheader("Data Distribution Analysis")
+            st.plotly_chart(
+                figs["hist"], use_container_width=True, config=PlotManager.PLOT_CONFIG
+            )
+
+        # --- Control Chart (Run Chart) ---
+        if res and res.get("importedData") and len(res.get("importedData", [])) >= 5:
+            st.subheader("📊 Control Chart (Individual Values)")
+
+            data_points = res.get("importedData", [])
+            x_bar = res.get("x_bar", np.mean(data_points))
+            s = res.get("s", np.std(data_points, ddof=1))
+            n = len(data_points)
+
+            # Calculate control limits (3-sigma)
+            ucl = x_bar + 3 * s
+            lcl = x_bar - 3 * s
+
+            # Create control chart
+            fig_control = go.Figure()
+
+            # Data points
+            fig_control.add_trace(
+                go.Scatter(
+                    x=list(range(1, n + 1)),
+                    y=data_points,
+                    mode="lines+markers",
+                    name="Data",
+                    line=dict(color="#3B82F6", width=2),
+                    marker=dict(size=6, color="#3B82F6"),
+                    hovertemplate="Sample %{x}<br>Value: %{y:.4f}<extra></extra>",
+                )
+            )
+
+            # Center line (mean)
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n],
+                    y=[x_bar, x_bar],
+                    mode="lines",
+                    name=f"Mean (x̄={x_bar:.4f})",
+                    line=dict(color="#10B981", width=2, dash="solid"),
+                )
+            )
+
+            # UCL
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n],
+                    y=[ucl, ucl],
+                    mode="lines",
+                    name=f"UCL ({ucl:.4f})",
+                    line=dict(color="#EF4444", width=1.5, dash="dash"),
+                )
+            )
+
+            # LCL
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n],
+                    y=[lcl, lcl],
+                    mode="lines",
+                    name=f"LCL ({lcl:.4f})",
+                    line=dict(color="#EF4444", width=1.5, dash="dash"),
+                )
+            )
+
+            # Warning limits (2-sigma)
+            uwl = x_bar + 2 * s
+            lwl = x_bar - 2 * s
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n],
+                    y=[uwl, uwl],
+                    mode="lines",
+                    name=f"UWL ({uwl:.4f})",
+                    line=dict(color="#F59E0B", width=1, dash="dot"),
+                )
+            )
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n],
+                    y=[lwl, lwl],
+                    mode="lines",
+                    name=f"LWL ({lwl:.4f})",
+                    line=dict(color="#F59E0B", width=1, dash="dot"),
+                )
+            )
+
+            # Highlight out-of-control points
+            ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
+            if ooc_indices:
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[i + 1 for i in ooc_indices],
+                        y=[data_points[i] for i in ooc_indices],
+                        mode="markers",
+                        name="Out of Control",
+                        marker=dict(
+                            size=12,
+                            color="#EF4444",
+                            symbol="circle-open",
+                            line=dict(width=2),
+                        ),
+                    )
+                )
+
+            fig_control.update_layout(
+                title="Individual Values Control Chart (I-Chart)",
+                xaxis_title="Sample Number",
+                yaxis_title="Value",
+                template="plotly_white",
+                height=400,
+                hovermode="x unified",
+                legend=dict(
+                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+                ),
+            )
+
+            st.plotly_chart(
+                fig_control, use_container_width=True, config=PlotManager.PLOT_CONFIG
+            )
+
+            # Out-of-control alert
+            if ooc_indices:
+                st.warning(
+                    f"⚠️ {len(ooc_indices)} point(s) outside control limits at samples: {', '.join(map(str, [i + 1 for i in ooc_indices]))}"
+                )
+            else:
+                st.success(
+                    "✅ All points within control limits - process is in statistical control"
+                )
+
     else:
         st.info(
             "Run analysis on the 'Analysis & Report' tab to generate visualizations."
@@ -2704,10 +3609,10 @@ with tab_history:
         st.info("No history available. Run an analysis to log it here.")
     else:
         # Filters
-        hist_cols = st.columns([2, 1, 1])
-        with hist_cols[0]:
+        hist_filter_cols = st.columns([1.4, 1, 1])
+        with hist_filter_cols[0]:
             filter_name = st.text_input("Filter by Name")
-        with hist_cols[1]:
+        with hist_filter_cols[1]:
             filter_verdict = st.selectbox(
                 "Filter by Verdict",
                 [
@@ -2718,9 +3623,16 @@ with tab_history:
                     "INVALID INPUTS",
                 ],
             )
+        with hist_filter_cols[2]:
+            filter_characteristic = st.selectbox(
+                "Filter by Characteristic",
+                ["all"] + sorted({entry.get("characteristic_name", entry.get("measurement_name", "")) for entry in st.session_state.history}),
+            )
 
         # Prepare data for display
         history_df = pd.DataFrame(st.session_state.history)
+        if "characteristic_name" not in history_df.columns:
+            history_df["characteristic_name"] = history_df.get("measurement_name", "")
 
         # Filter
         filtered_history = history_df
@@ -2734,10 +3646,18 @@ with tab_history:
             filtered_history = filtered_history[
                 filtered_history["verdict"] == filter_verdict
             ]
+        if filter_characteristic != "all":
+            filtered_history = filtered_history[
+                filtered_history["characteristic_name"].fillna(
+                    filtered_history["measurement_name"]
+                )
+                == filter_characteristic
+            ]
 
         # Select columns for display
         display_cols = [
             "id",
+            "characteristic_name",
             "measurement_name",
             "verdict",
             "Cp",
@@ -2754,7 +3674,7 @@ with tab_history:
         ]
         # Rename for clarity
         rename_map = {
-            "id": "Timestamp",
+            "characteristic_name": "Characteristic",
             "measurement_name": "Name",
             "verdict": "Verdict",
             "CpkCurrent": "Cpk",
@@ -2768,10 +3688,21 @@ with tab_history:
         }
 
         display_df = filtered_history[display_cols].copy()
+        display_df.insert(0, "Select", False)
+        display_df["Timestamp"] = display_df["id"].apply(
+            lambda value: datetime.datetime.fromisoformat(value).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            if value
+            else ""
+        )
         display_df.rename(columns=rename_map, inplace=True)
 
         # Format for display
         format_config = {
+            "Select": st.column_config.CheckboxColumn(
+                "Select", help="Choose rows to include in the export."
+            ),
             "Timestamp": st.column_config.TextColumn(),
             "Cp": st.column_config.NumberColumn(format="%.3f"),
             "Cpk": st.column_config.NumberColumn(format="%.3f"),
@@ -2786,45 +3717,71 @@ with tab_history:
         }
 
         st.markdown("Select rows to export:")
-        selection = st.data_editor(
+        selection_df = st.data_editor(
             display_df,
             column_config=format_config,
             hide_index=True,
             use_container_width=True,
-            num_rows="dynamic",  # This allows selection
+            disabled=[
+                "Timestamp",
+                "Characteristic",
+                "Name",
+                "Verdict",
+                "Cp",
+                "Cpk",
+                "Shift (Δ)",
+                "Tₘ",
+                "LSL",
+                "USL",
+                "Mean (x̄)",
+                "StdDev (σ)",
+                "n",
+                "PPM < LSL",
+                "PPM > USL",
+            ],
+            column_order=[
+                "Select",
+                "Timestamp",
+                "Characteristic",
+                "Name",
+                "Verdict",
+                "Cp",
+                "Cpk",
+                "Shift (Δ)",
+                "Tₘ",
+                "LSL",
+                "USL",
+                "Mean (x̄)",
+                "StdDev (σ)",
+                "n",
+                "PPM < LSL",
+                "PPM > USL",
+            ],
+            key="history_selection_editor",
         )
 
-        selected_indices = selection.get("selection", {}).get("rows", [])
+        selected_ids = selection_df.loc[selection_df["Select"], "id"].tolist()
 
-        if selected_indices:
-            selected_ids = display_df.iloc[selected_indices]["Timestamp"].tolist()
-            # Find the original full data from session_state
+        if selected_ids:
             selected_history_data = [
                 entry
                 for entry in st.session_state.history
-                if datetime.datetime.fromisoformat(entry["id"]).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                )
-                in [ts.strftime("%Y-%m-%d %H:%M:%S") for ts in selected_ids]
+                if entry.get("id") in selected_ids
             ]
 
             try:
                 history_buffer = exporter.export_selected_history(selected_history_data)
-                with hist_cols[2]:
-                    st.download_button(
-                        label=f"Export Selected ({len(selected_indices)})",
-                        data=history_buffer,
-                        file_name=f"Capability_History_Selection_{datetime.date.today()}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                    )
+                st.download_button(
+                    label=f"Export Selected ({len(selected_ids)})",
+                    data=history_buffer,
+                    file_name=f"Capability_History_Selection_{datetime.date.today()}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=False,
+                )
             except Exception as e:
                 st.error(f"Could not generate history export: {e}")
         else:
-            with hist_cols[2]:
-                st.button(
-                    "Export Selected (0)", use_container_width=True, disabled=True
-                )
+            st.button("Export Selected (0)", use_container_width=False, disabled=True)
 
 
 # --- Tab 5: Reference ---
@@ -2844,29 +3801,28 @@ with tab_ref:
             -   **Verify Tolerance Adequacy:** Determine the minimum **Required Tolerance** (USL - LSL) necessary for the existing process variation (σ) to meet a desired capability index (Cₚₖ, Pₚₖ).
 
             #### Step-by-Step Usage
-            1.  **Input Data (Tabs):** Go to the **Data Worksheet** tab to paste raw data. Then, go to the **Analysis** tab to set **Specifications** (LSL/USL) and select "Use Data Worksheet".
-            2.  **Run Analysis & Plot:** Click **ANALYZE & PLOT**. The tool calculates all metrics and renders plots.
-            3.  **Interpret Results (Section II & III):** Review the raw numbers in Section II and read the plain-language summary in Section III.
+            1.  **Set the characteristic details:** In **Data Worksheet**, enter the measurement label, description, Tₘ, LSL, and USL.
+            2.  **Load part data:** Enter `DMC / Serial Number` and the measured `Value` for each part, or upload a CSV/Excel file using the first numeric column as the measurement values.
+            3.  **Run analysis:** In **Analysis & Report**, choose manual or worksheet mode and click **ANALYZE & PLOT**.
+            4.  **Review plots:** In **Visualization**, inspect the worksheet distribution histogram, box plot, capability plots, and control chart.
+            5.  **Review results:** Use the summary and history tabs to evaluate capability and trace prior runs.
             """
         )
         st.divider()
         st.subheader("Concepts Overview: Six Sigma & Capability Indices")
         st.markdown(
             """
-            #### Six Sigma and Process Management
-            **Six Sigma (6σ)** is a methodology focused on reducing process variation.
-            -   3σ Level: 2,700 PPM (Defects)
-            -   4σ Level: 63 PPM
-            -   5σ Level: 0.57 PPM
-            -   6σ Level: 0.002 PPM
+            #### Core Automotive Capability Formulas
+            -   **Cp = (USL - LSL) / 6σ**
+            -   **Cpk = min[(USL - x̄) / 3σ, (x̄ - LSL) / 3σ]**
+            -   **Required Shift (Δ) = Tₘ - x̄**
+            -   **Required Tolerance = Target Index × 6σ**
 
-            #### Capability Indices: Time Horizon
-            -   **Cₚ/Cₚₖ/Cₘₖ (Short-Term Capability):** Use within-subgroup variation, reflecting immediate, inherent capability.
-            -   **Pₚ/Pₚₖ (Long-Term Performance):** Use overall process variation, including all sources of variation over time.
-
-            #### Choosing a Distribution: Normal vs. Lognormal
-            -   **Normal (Gaussian):** Symmetric, bell-shaped. Use when data is symmetric (e.g., positional error).
-            -   **Lognormal:** Skewed to the right, bounded by zero. Use when data cannot be negative (e.g., time to failure, concentration levels).
+            #### Manufacturing Interpretation
+            -   **Cp** checks potential capability if the process is perfectly centered.
+            -   **Cpk** checks real capability with actual centering error included.
+            -   **PPM** estimates expected nonconforming parts above USL or below LSL.
+            -   This tool assumes a **normal dimensional-process model**, which fits most machined, turned, ground, stamped, or molded size characteristics after the process is stable.
             """
         )
         st.divider()
@@ -2909,7 +3865,7 @@ with tab_ref:
                 st.markdown(message["content"])
 
         # Chat input
-        if prompt := st.chat_input("Ask about 'Cp', 'Lognormal', 'Hypothesis' ..."):
+        if prompt := st.chat_input("Ask about 'Cp', 'Cpk', 'PPM', 'hypothesis' ..."):
             # Add user message to chat history
             st.session_state.chat_messages.append({"role": "user", "content": prompt})
             with st.chat_message("user"):
