@@ -1,374 +1,449 @@
 #!/usr/bin/env python3
 """
-Generate an Excel-based Statistical Process Capability Tool.
-Creates a multi-tab workbook with formulas, conditional formatting, and charts.
+Generate an Excel-based Statistical Process Capability Tool — Deep Edition.
+Mirrors the original Streamlit application with:
+- Auto-linked Data Worksheet (x̄ and σ calculated automatically)
+- Manual/Worksheet mode toggle via dropdown
+- Full summary panel with centering, capability, robustness, tolerance, hypothesis
+- Conditional formatting throughout
+- Process distribution bell curve + capability bar chart
+- History log with pre-linked formulas
+- Reference guide
 """
-import math
 from openpyxl import Workbook
 from openpyxl.styles import (
     Font, Alignment, Border, Side, PatternFill, numbers
 )
-from openpyxl.chart import BarChart, LineChart, Reference
+from openpyxl.chart import BarChart, LineChart, Reference, BarChart3D
 from openpyxl.chart.series import DataPoint
 from openpyxl.chart.label import DataLabelList
 from openpyxl.utils import get_column_letter
-from openpyxl.formatting.rule import CellIsRule, DataBarRule
+from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.worksheet.datavalidation import DataValidation
+import math
 
 OUTPUT_FILE = "SPC_Statistical_Calculator.xlsx"
+MAX_DATA_ROWS = 100
 
-# --- Color palette ---
-BLUE = "3B82F6"
-DARK_BLUE = "1E3A8A"
-GREEN = "10B981"
-RED = "EF4444"
-ORANGE = "F97316"
-GRAY = "6B7280"
+# ===========================================================================
+# Color palette
+# ===========================================================================
+BLUE       = "3B82F6"
+DARK_BLUE  = "1E3A8A"
+GREEN      = "10B981"
+DARK_GREEN = "047857"
+RED        = "EF4444"
+DARK_RED   = "991B1B"
+ORANGE     = "F97316"
+AMBER      = "92400E"
+GRAY       = "6B7280"
 LIGHT_GRAY = "F1F5F9"
-WHITE = "FFFFFF"
-DARK_BG = "1F2937"
+WHITE      = "FFFFFF"
+DARK_BG    = "1F2937"
 
-# --- Reusable styles ---
-HEADER_FONT = Font(name="Calibri", bold=True, size=12, color=WHITE)
-HEADER_FILL = PatternFill(start_color=DARK_BLUE, end_color=DARK_BLUE, fill_type="solid")
-SUBHEADER_FONT = Font(name="Calibri", bold=True, size=11, color=DARK_BLUE)
-SUBHEADER_FILL = PatternFill(start_color=LIGHT_GRAY, end_color=LIGHT_GRAY, fill_type="solid")
-INPUT_FILL = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
-RESULT_FILL = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid")
-WARN_FILL = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
-BAD_FILL = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
-GOOD_FILL = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
-LABEL_FONT = Font(name="Calibri", size=10, bold=True, color=DARK_BLUE)
-VALUE_FONT = Font(name="Calibri", size=11)
-TITLE_FONT = Font(name="Calibri", size=16, bold=True, color=DARK_BLUE)
-THIN_BORDER = Border(
+# ===========================================================================
+# Reusable styles
+# ===========================================================================
+HEADER_FONT    = Font(name="Calibri", bold=True, size=11, color=WHITE)
+HEADER_FILL    = PatternFill(start_color=DARK_BLUE, end_color=DARK_BLUE, fill_type="solid")
+SECTION_FONT   = Font(name="Calibri", bold=True, size=11, color=DARK_BLUE)
+SECTION_FILL   = PatternFill(start_color="E0E7FF", end_color="E0E7FF", fill_type="solid")
+INPUT_FILL     = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+RESULT_FILL    = PatternFill(start_color="ECFDF5", end_color="ECFDF5", fill_type="solid")
+CALC_FILL      = PatternFill(start_color="F0FDF4", end_color="F0FDF4", fill_type="solid")
+WARN_FILL      = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+BAD_FILL       = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+GOOD_FILL      = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
+VERDICT_GREEN  = PatternFill(start_color="059669", end_color="059669", fill_type="solid")
+VERDICT_ORANGE = PatternFill(start_color="D97706", end_color="D97706", fill_type="solid")
+VERDICT_RED    = PatternFill(start_color="DC2626", end_color="DC2626", fill_type="solid")
+LABEL_FONT     = Font(name="Calibri", size=10, bold=True, color=DARK_BLUE)
+VALUE_FONT     = Font(name="Calibri", size=11)
+TITLE_FONT     = Font(name="Calibri", size=16, bold=True, color=DARK_BLUE)
+SUBTITLE_FONT  = Font(name="Calibri", size=10, italic=True, color=GRAY)
+THIN_BORDER    = Border(
     left=Side(style="thin", color="D1D5DB"),
     right=Side(style="thin", color="D1D5DB"),
     top=Side(style="thin", color="D1D5DB"),
     bottom=Side(style="thin", color="D1D5DB"),
 )
 CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
-LEFT = Alignment(horizontal="left", vertical="center", wrap_text=True)
+LEFT   = Alignment(horizontal="left", vertical="center", wrap_text=True)
 
 
-def apply_header_row(ws, row, cols, texts):
-    """Apply header style to a row."""
-    for i, (col, text) in enumerate(zip(cols, texts)):
-        cell = ws.cell(row=row, column=col, value=text)
-        cell.font = HEADER_FONT
-        cell.fill = HEADER_FILL
-        cell.alignment = CENTER
-        cell.border = THIN_BORDER
+# ===========================================================================
+# Helper functions
+# ===========================================================================
+def header_row(ws, row, start_col, texts, merge_end_col=None):
+    for i, text in enumerate(texts):
+        c = ws.cell(row=row, column=start_col + i, value=text)
+        c.font = HEADER_FONT
+        c.fill = HEADER_FILL
+        c.alignment = CENTER
+        c.border = THIN_BORDER
+    if merge_end_col:
+        ws.merge_cells(start_row=row, start_column=start_col,
+                       end_row=row, end_column=merge_end_col)
 
 
-def apply_label_value_pair(ws, row, label_col, label, value_col, value=None,
-                           formula=None, is_input=False, num_format=None):
-    """Write a label-value pair with styling."""
-    lc = ws.cell(row=row, column=label_col, value=label)
-    lc.font = LABEL_FONT
-    lc.alignment = LEFT
-    lc.border = THIN_BORDER
+def section_row(ws, row, start_col, end_col, text):
+    ws.merge_cells(start_row=row, start_column=start_col,
+                   end_row=row, end_column=end_col)
+    c = ws.cell(row=row, column=start_col, value=text)
+    c.font = SECTION_FONT
+    c.fill = SECTION_FILL
+    c.alignment = LEFT
+    c.border = THIN_BORDER
+    for col in range(start_col, end_col + 1):
+        ws.cell(row=row, column=col).border = THIN_BORDER
+        ws.cell(row=row, column=col).fill = SECTION_FILL
 
-    vc = ws.cell(row=row, column=value_col)
+
+def lv(ws, row, lc, label, vc, value=None, formula=None, is_input=False,
+       fmt=None, fill=None, font=None, merge_label_to=None):
+    """Write label-value pair."""
+    cell_l = ws.cell(row=row, column=lc, value=label)
+    cell_l.font = LABEL_FONT
+    cell_l.alignment = LEFT
+    cell_l.border = THIN_BORDER
+    if merge_label_to:
+        ws.merge_cells(start_row=row, start_column=lc,
+                       end_row=row, end_column=merge_label_to)
+
+    cell_v = ws.cell(row=row, column=vc)
     if formula:
-        vc.value = formula
+        cell_v.value = formula
     elif value is not None:
-        vc.value = value
-    vc.font = VALUE_FONT
-    vc.alignment = CENTER
-    vc.border = THIN_BORDER
-    vc.fill = INPUT_FILL if is_input else RESULT_FILL
-    if num_format:
-        vc.number_format = num_format
-    return vc
+        cell_v.value = value
+    cell_v.font = font or VALUE_FONT
+    cell_v.alignment = CENTER
+    cell_v.border = THIN_BORDER
+    if fill:
+        cell_v.fill = fill
+    elif is_input:
+        cell_v.fill = INPUT_FILL
+    else:
+        cell_v.fill = RESULT_FILL
+    if fmt:
+        cell_v.number_format = fmt
+    return cell_v
 
 
+def add_cpk_cond_fmt(ws, cell_range):
+    ws.conditional_formatting.add(cell_range,
+        CellIsRule(operator="greaterThanOrEqual", formula=["1.67"],
+                   fill=GOOD_FILL, font=Font(color=DARK_GREEN, bold=True)))
+    ws.conditional_formatting.add(cell_range,
+        CellIsRule(operator="between", formula=["1", "1.669"],
+                   fill=WARN_FILL, font=Font(color=AMBER, bold=True)))
+    ws.conditional_formatting.add(cell_range,
+        CellIsRule(operator="lessThan", formula=["1"],
+                   fill=BAD_FILL, font=Font(color=DARK_RED, bold=True)))
+
+
+# ===========================================================================
+# Cell references (Analysis sheet)
+# ===========================================================================
+# These are fixed cell addresses used in formulas throughout the workbook.
+# Section 1 — Specifications
+C_NAME    = "C5"   # Measurement name
+C_TM      = "C6"   # Target Mean
+C_LSL     = "C7"   # LSL
+C_USL     = "C8"   # USL
+# Section 2 — Mode & Data
+C_MODE    = "C10"  # "Enter Manually" or "Use Data Worksheet"
+C_XBAR_M  = "C12"  # Manual x̄
+C_SIGMA_M = "C13"  # Manual σ
+C_N_M     = "C14"  # Manual n
+# Auto-calculated from Data sheet
+C_XBAR_D  = "G5"   # = Data!G6 (mean)
+C_SIGMA_D = "G6"   # = Data!G7 (std dev)
+C_N_D     = "G7"   # = Data!G5 (count)
+# Effective values (mode-switched)
+C_XBAR    = "G9"   # Effective x̄
+C_SIGMA   = "G10"  # Effective σ
+C_N       = "G11"  # Effective n
+# Targets
+C_TARGET  = "C16"  # Target capability index
+C_CL      = "C17"  # Confidence level
+C_DP      = "C18"  # Decimal places
+C_HYPO    = "C19"  # Hypothesis type
+
+
+# ===========================================================================
+# SHEET 1: Analysis
+# ===========================================================================
 def create_analysis_sheet(wb):
-    """Sheet 1: Analysis — Input parameters and calculated results."""
     ws = wb.active
     ws.title = "Analysis"
     ws.sheet_properties.tabColor = BLUE
 
     # Column widths
-    ws.column_dimensions["A"].width = 2
-    ws.column_dimensions["B"].width = 28
-    ws.column_dimensions["C"].width = 16
-    ws.column_dimensions["D"].width = 4
-    ws.column_dimensions["E"].width = 28
-    ws.column_dimensions["F"].width = 16
-    ws.column_dimensions["G"].width = 4
-    ws.column_dimensions["H"].width = 28
-    ws.column_dimensions["I"].width = 16
+    for col, w in [("A",2),("B",28),("C",18),("D",3),("E",3),
+                   ("F",28),("G",18),("H",3),("I",28),("J",18)]:
+        ws.column_dimensions[col].width = w
 
-    # --- Title ---
-    ws.merge_cells("B1:I1")
-    title_cell = ws.cell(row=1, column=2, value="Statistical Process Capability & Optimization Tool")
-    title_cell.font = TITLE_FONT
-    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    # === TITLE ===
+    ws.merge_cells("B1:J1")
+    ws.cell(row=1, column=2, value="Statistical Process Capability & Optimization Tool").font = TITLE_FONT
+    ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
+    ws.merge_cells("B2:J2")
+    ws.cell(row=2, column=2,
+            value="Automotive Dimensional Capability Analysis — Single Characteristic | Excel Edition").font = SUBTITLE_FONT
+    ws.cell(row=2, column=2).alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("B2:I2")
-    sub = ws.cell(row=2, column=2, value="Automotive Dimensional Capability Analysis — Single Characteristic")
-    sub.font = Font(name="Calibri", size=10, italic=True, color=GRAY)
-    sub.alignment = Alignment(horizontal="center")
+    # ====================== LEFT COLUMN (B-C): INPUTS ======================
+    # --- Section 1: Specifications ---
+    section_row(ws, 4, 2, 3, "I. SPECIFICATIONS")
+    lv(ws, 5, 2, "Measurement Name", 3, value="Diameter A", is_input=True)
+    lv(ws, 6, 2, "Target Mean (Tₘ)", 3, value=10.00, is_input=True, fmt="0.000")
+    lv(ws, 7, 2, "Lower Spec Limit (LSL)", 3, value=9.90, is_input=True, fmt="0.000")
+    lv(ws, 8, 2, "Upper Spec Limit (USL)", 3, value=10.10, is_input=True, fmt="0.000")
 
-    # ========== SECTION 1: SPECIFICATIONS (Inputs) ==========
-    row = 4
-    apply_header_row(ws, row, [2, 3], ["I. SPECIFICATIONS", "Value"])
+    # --- Section 2: Data & Goals ---
+    section_row(ws, 9, 2, 3, "II. DATA & GOALS")
 
-    row = 5
-    apply_label_value_pair(ws, row, 2, "Measurement Name", 3, value="Diameter A", is_input=True)
-    row = 6
-    apply_label_value_pair(ws, row, 2, "Target Mean (Tₘ)", 3, value=10.00, is_input=True, num_format="0.000")
-    row = 7
-    apply_label_value_pair(ws, row, 2, "Lower Spec Limit (LSL)", 3, value=9.90, is_input=True, num_format="0.000")
-    row = 8
-    apply_label_value_pair(ws, row, 2, "Upper Spec Limit (USL)", 3, value=10.10, is_input=True, num_format="0.000")
+    # Mode dropdown
+    lv(ws, 10, 2, "Data Input Mode", 3, value="Enter Manually", is_input=True)
+    mode_dv = DataValidation(type="list", formula1='"Enter Manually,Use Data Worksheet"',
+                              allow_blank=False, showDropDown=False)
+    mode_dv.prompt = "Choose data source"
+    mode_dv.promptTitle = "Mode"
+    ws.add_data_validation(mode_dv)
+    mode_dv.add(ws["C10"])
 
-    # ========== SECTION 2: PROCESS DATA (Inputs) ==========
-    row = 10
-    apply_header_row(ws, row, [2, 3], ["II. PROCESS DATA", "Value"])
+    # Subtitle
+    ws.merge_cells("B11:C11")
+    ws.cell(row=11, column=2,
+            value="▼ Manual inputs (used when Mode = Enter Manually)").font = Font(
+        name="Calibri", size=9, italic=True, color=GRAY)
 
-    row = 11
-    apply_label_value_pair(ws, row, 2, "Measured Mean (x̄)", 3, value=10.00, is_input=True, num_format="0.000")
-    row = 12
-    apply_label_value_pair(ws, row, 2, "Standard Deviation (σ)", 3, value=0.015, is_input=True, num_format="0.00000")
-    row = 13
-    apply_label_value_pair(ws, row, 2, "Sample Size (n)", 3, value=30, is_input=True, num_format="0")
-    row = 14
-    apply_label_value_pair(ws, row, 2, "Target Capability Index", 3, value=1.67, is_input=True, num_format="0.00")
-    row = 15
-    apply_label_value_pair(ws, row, 2, "Confidence Level (%)", 3, value=95.0, is_input=True, num_format="0.0")
+    lv(ws, 12, 2, "x̄ (Measured Mean)", 3, value=10.00, is_input=True, fmt="0.00000")
+    lv(ws, 13, 2, "σ (Standard Deviation)", 3, value=0.015, is_input=True, fmt="0.00000")
+    lv(ws, 14, 2, "n (Sample Size)", 3, value=30, is_input=True, fmt="0")
 
-    # Data Source note
-    row = 16
-    note = ws.cell(row=row, column=2, value="💡 Or use the 'Data' sheet to enter part-by-part values. Mean & σ auto-calculate there.")
-    note.font = Font(name="Calibri", size=9, italic=True, color=GRAY)
-    ws.merge_cells(f"B{row}:C{row}")
+    # --- Section 3: Targets & Settings ---
+    section_row(ws, 15, 2, 3, "III. TARGETS & SETTINGS")
+    lv(ws, 16, 2, "Target Capability Index", 3, value=1.67, is_input=True, fmt="0.00")
+    lv(ws, 17, 2, "Confidence Level (%)", 3, value=95.0, is_input=True, fmt="0.0")
+    lv(ws, 18, 2, "Decimal Places", 3, value=3, is_input=True, fmt="0")
+    lv(ws, 19, 2, "Hypothesis Type", 3, value="Two-Sided", is_input=True)
+    hypo_dv = DataValidation(type="list", formula1='"Two-Sided,Upper-Sided,Lower-Sided"',
+                              allow_blank=False, showDropDown=False)
+    ws.add_data_validation(hypo_dv)
+    hypo_dv.add(ws["C19"])
 
-    # ========== SECTION 3: CALCULATED RESULTS ==========
-    row = 4
-    apply_header_row(ws, row, [5, 6], ["III. CALCULATED RESULTS", "Value"])
+    # ====================== MIDDLE COLUMN (F-G): EFFECTIVE DATA + RESULTS ======================
 
-    # --- Named cell references for formulas ---
-    # C6=Tm, C7=LSL, C8=USL, C11=x_bar, C12=sigma, C13=n, C14=target_index, C15=CL
-    tm, lsl, usl = "C6", "C7", "C8"
-    xbar, sigma, n_samp = "C11", "C12", "C13"
-    target_idx, cl = "C14", "C15"
+    # --- Effective Data (auto-switched by mode) ---
+    section_row(ws, 4, 6, 7, "EFFECTIVE DATA (auto-selected by mode)")
 
-    # Tolerance (T = USL - LSL)
-    row = 5
-    apply_label_value_pair(ws, row, 5, "Tolerance (T = USL − LSL)", 6,
-                           formula=f"={usl}-{lsl}", num_format="0.000")
+    # Data from worksheet (auto-linked)
+    lv(ws, 5, 6, "Worksheet x̄", 7, formula="=Data!G6", fmt="0.00000", fill=CALC_FILL)
+    lv(ws, 6, 6, "Worksheet σ", 7, formula="=Data!G7", fmt="0.00000", fill=CALC_FILL)
+    lv(ws, 7, 6, "Worksheet n", 7, formula="=Data!G5", fmt="0", fill=CALC_FILL)
 
-    # 6σ Spread
-    row = 6
-    apply_label_value_pair(ws, row, 5, "6σ Spread", 6,
-                           formula=f"=6*{sigma}", num_format="0.000")
+    # Separator
+    ws.cell(row=8, column=6, value="▼ Active values used in calculations:").font = Font(
+        name="Calibri", size=9, italic=True, color=ORANGE)
+    ws.merge_cells("F8:G8")
 
-    # 8σ Spread
-    row = 7
-    apply_label_value_pair(ws, row, 5, "8σ Spread", 6,
-                           formula=f"=8*{sigma}", num_format="0.000")
+    # Effective x̄ — switches based on mode
+    lv(ws, 9, 6, "x̄ (ACTIVE)", 7,
+       formula=f'=IF({C_MODE}="Use Data Worksheet",G5,{C_XBAR_M})',
+       fmt="0.00000", fill=RESULT_FILL,
+       font=Font(name="Calibri", size=12, bold=True, color=DARK_BLUE))
 
-    # Cp
-    row = 8
-    apply_label_value_pair(ws, row, 5, "Cp (Potential Capability)", 6,
-                           formula=f'=IF({sigma}=0,"∞",({usl}-{lsl})/(6*{sigma}))',
-                           num_format="0.000")
+    # Effective σ
+    lv(ws, 10, 6, "σ (ACTIVE)", 7,
+       formula=f'=IF({C_MODE}="Use Data Worksheet",G6,{C_SIGMA_M})',
+       fmt="0.00000", fill=RESULT_FILL,
+       font=Font(name="Calibri", size=12, bold=True, color=DARK_BLUE))
 
-    # Cpk
-    row = 9
-    apply_label_value_pair(ws, row, 5, "Cpk (Actual Capability)", 6,
-                           formula=f'=IF({sigma}=0,"∞",MIN(({usl}-{xbar})/(3*{sigma}),({xbar}-{lsl})/(3*{sigma})))',
-                           num_format="0.000")
+    # Effective n
+    lv(ws, 11, 6, "n (ACTIVE)", 7,
+       formula=f'=IF({C_MODE}="Use Data Worksheet",G7,{C_N_M})',
+       fmt="0", fill=RESULT_FILL,
+       font=Font(name="Calibri", size=12, bold=True, color=DARK_BLUE))
 
-    # Required Shift
-    row = 10
-    apply_label_value_pair(ws, row, 5, "Required Shift (Δ = Tₘ − x̄)", 6,
-                           formula=f"={tm}-{xbar}", num_format="0.000")
+    # *** All result formulas now reference G9, G10, G11 ***
+    xbar = "G9"
+    sigma = "G10"
+    n = "G11"
 
-    # Shift Direction
-    row = 11
-    apply_label_value_pair(ws, row, 5, "Shift Direction", 6,
-                           formula=f'=IF({tm}-{xbar}=0,"Centered",IF({tm}-{xbar}>0,"Shift UP (+)","Shift DOWN (−)"))')
+    # --- Section 4: Calculated Results ---
+    section_row(ws, 13, 6, 7, "IV. CALCULATED RESULTS")
 
-    # Required Tolerance
-    row = 12
-    apply_label_value_pair(ws, row, 5, "Required Tolerance (for target index)", 6,
-                           formula=f"=IF({sigma}=0,0,{target_idx}*6*{sigma})",
-                           num_format="0.000")
+    lv(ws, 14, 6, "Tolerance (T = USL − LSL)", 7,
+       formula=f"={C_USL}-{C_LSL}", fmt="0.000")
+    lv(ws, 15, 6, "6σ Spread", 7,
+       formula=f"=6*{sigma}", fmt="0.000")
+    lv(ws, 16, 6, "8σ Spread", 7,
+       formula=f"=8*{sigma}", fmt="0.000")
+    lv(ws, 17, 6, "Cp (Potential Capability)", 7,
+       formula=f'=IF({sigma}=0,"∞",({C_USL}-{C_LSL})/(6*{sigma}))', fmt="0.000")
+    add_cpk_cond_fmt(ws, "G17")
 
-    # x̄ ± 3σ
-    row = 13
-    apply_label_value_pair(ws, row, 5, "x̄ − 3σ", 6,
-                           formula=f"={xbar}-3*{sigma}", num_format="0.000")
-    row = 14
-    apply_label_value_pair(ws, row, 5, "x̄ + 3σ", 6,
-                           formula=f"={xbar}+3*{sigma}", num_format="0.000")
+    lv(ws, 18, 6, "Cpk (Actual Capability)", 7,
+       formula=f'=IF({sigma}=0,"∞",MIN(({C_USL}-{xbar})/(3*{sigma}),({xbar}-{C_LSL})/(3*{sigma})))',
+       fmt="0.000")
+    add_cpk_cond_fmt(ws, "G18")
 
-    # x̄ ± 4σ
-    row = 15
-    apply_label_value_pair(ws, row, 5, "x̄ − 4σ", 6,
-                           formula=f"={xbar}-4*{sigma}", num_format="0.000")
-    row = 16
-    apply_label_value_pair(ws, row, 5, "x̄ + 4σ", 6,
-                           formula=f"={xbar}+4*{sigma}", num_format="0.000")
+    lv(ws, 19, 6, "Required Shift (Δ = Tₘ − x̄)", 7,
+       formula=f"={C_TM}-{xbar}", fmt="0.000")
+    lv(ws, 20, 6, "Shift Direction", 7,
+       formula=f'=IF({C_TM}-{xbar}=0,"✅ Centered",IF({C_TM}-{xbar}>0,"⬆ Shift UP","⬇ Shift DOWN"))')
+    lv(ws, 21, 6, "Required Tolerance (for target)", 7,
+       formula=f"=IF({sigma}=0,0,{C_TARGET}*6*{sigma})", fmt="0.000")
+    lv(ws, 22, 6, "x̄ − 3σ", 7, formula=f"={xbar}-3*{sigma}", fmt="0.000")
+    lv(ws, 23, 6, "x̄ + 3σ", 7, formula=f"={xbar}+3*{sigma}", fmt="0.000")
+    lv(ws, 24, 6, "x̄ − 4σ", 7, formula=f"={xbar}-4*{sigma}", fmt="0.000")
+    lv(ws, 25, 6, "x̄ + 4σ", 7, formula=f"={xbar}+4*{sigma}", fmt="0.000")
 
-    # ========== SECTION 4: PROBABILITY & DEFECT ANALYSIS ==========
-    row = 18
-    apply_header_row(ws, row, [5, 6], ["IV. PROBABILITY & DEFECTS", "Value"])
+    # ====================== RIGHT COLUMN (I-J): PROBABILITY + HYPOTHESIS + VERDICT ======================
 
-    # P(x > USL) — uses NORM.S.DIST
-    row = 19
-    apply_label_value_pair(ws, row, 5, "P(x > USL)", 6,
-                           formula=f'=IF({sigma}=0,IF({xbar}>{usl},1,0),1-NORM.DIST({usl},{xbar},{sigma},TRUE))',
-                           num_format="0.0000%")
+    # --- Section 5: Probability & Defects ---
+    section_row(ws, 4, 9, 10, "V. PROBABILITY & DEFECTS")
 
-    # P(x < LSL)
-    row = 20
-    apply_label_value_pair(ws, row, 5, "P(x < LSL)", 6,
-                           formula=f'=IF({sigma}=0,IF({xbar}<{lsl},1,0),NORM.DIST({lsl},{xbar},{sigma},TRUE))',
-                           num_format="0.0000%")
+    lv(ws, 5, 9, "P(x > USL)", 10,
+       formula=f'=IF({sigma}=0,IF({xbar}>{C_USL},1,0),1-NORM.DIST({C_USL},{xbar},{sigma},TRUE))',
+       fmt="0.0000%")
+    lv(ws, 6, 9, "P(x < LSL)", 10,
+       formula=f'=IF({sigma}=0,IF({xbar}<{C_LSL},1,0),NORM.DIST({C_LSL},{xbar},{sigma},TRUE))',
+       fmt="0.0000%")
+    lv(ws, 7, 9, "P(x < Tₘ)", 10,
+       formula=f'=IF({sigma}=0,IF({xbar}<{C_TM},1,0),NORM.DIST({C_TM},{xbar},{sigma},TRUE))',
+       fmt="0.00%")
+    lv(ws, 8, 9, "PPM Above USL", 10, formula="=J5*1000000", fmt="#,##0.0")
+    lv(ws, 9, 9, "PPM Below LSL", 10, formula="=J6*1000000", fmt="#,##0.0")
+    lv(ws, 10, 9, "Total PPM", 10, formula="=J8+J9", fmt="#,##0.0",
+       fill=WARN_FILL, font=Font(name="Calibri", size=11, bold=True))
 
-    # P(x < Tₘ)
-    row = 21
-    apply_label_value_pair(ws, row, 5, "P(x < Tₘ)", 6,
-                           formula=f'=IF({sigma}=0,IF({xbar}<{tm},1,0),NORM.DIST({tm},{xbar},{sigma},TRUE))',
-                           num_format="0.00%")
+    # --- Section 6: Hypothesis Test ---
+    section_row(ws, 12, 9, 10, "VI. HYPOTHESIS TEST (μ vs Tₘ)")
 
-    # PPM Above USL
-    row = 22
-    apply_label_value_pair(ws, row, 5, "PPM Above USL", 6,
-                           formula=f"=F19*1000000", num_format="#,##0.0")
-
-    # PPM Below LSL
-    row = 23
-    apply_label_value_pair(ws, row, 5, "PPM Below LSL", 6,
-                           formula=f"=F20*1000000", num_format="#,##0.0")
-
-    # Total PPM
-    row = 24
-    apply_label_value_pair(ws, row, 5, "Total PPM (Defect Rate)", 6,
-                           formula=f"=F22+F23", num_format="#,##0.0")
-    ws["F24"].fill = WARN_FILL
-
-    # ========== SECTION 5: HYPOTHESIS TEST ==========
-    row = 18
-    apply_header_row(ws, row, [8, 9], ["V. HYPOTHESIS TEST (μ vs Tₘ)", "Value"])
-
-    # Standard Error
-    row = 19
-    apply_label_value_pair(ws, row, 8, "Standard Error (SE)", 9,
-                           formula=f"=IF({sigma}=0,0,{sigma}/SQRT({n_samp}))",
-                           num_format="0.00000")
-
-    # Z-statistic
-    row = 20
-    apply_label_value_pair(ws, row, 8, "Z-statistic", 9,
-                           formula=f'=IF(I19=0,IF({xbar}={tm},0,999),({xbar}-{tm})/I19)',
-                           num_format="0.000")
-
-    # p-value (Two-Sided)
-    row = 21
-    apply_label_value_pair(ws, row, 8, "p-value (Two-Sided)", 9,
-                           formula=f"=2*(1-NORM.S.DIST(ABS(I20),TRUE))",
-                           num_format="0.0000")
-
+    # SE
+    lv(ws, 13, 9, "Standard Error (SE)", 10,
+       formula=f"=IF({sigma}=0,0,{sigma}/SQRT({n}))", fmt="0.00000")
+    # Z-stat
+    lv(ws, 14, 9, "Z-statistic", 10,
+       formula=f'=IF(J13=0,IF({xbar}={C_TM},0,999),({xbar}-{C_TM})/J13)', fmt="0.000")
+    # p-value (adapts to hypothesis type)
+    lv(ws, 15, 9, "p-value", 10,
+       formula=f'=IF({C_HYPO}="Two-Sided",2*(1-NORM.S.DIST(ABS(J14),TRUE)),IF({C_HYPO}="Upper-Sided",1-NORM.S.DIST(J14,TRUE),NORM.S.DIST(J14,TRUE)))',
+       fmt="0.0000")
     # Alpha
-    row = 22
-    apply_label_value_pair(ws, row, 8, "Alpha (α)", 9,
-                           formula=f"=1-{cl}/100",
-                           num_format="0.00")
-
+    lv(ws, 16, 9, "Alpha (α)", 10,
+       formula=f"=1-{C_CL}/100", fmt="0.00")
     # Decision
-    row = 23
-    apply_label_value_pair(ws, row, 8, "Decision", 9,
-                           formula=f'=IF(I21<I22,"Reject H₀ — Mean has shifted","Fail to Reject H₀ — No significant shift")')
+    lv(ws, 17, 9, "Decision", 10,
+       formula='=IF(J15<J16,"❌ Reject H₀ — Mean shifted","✅ Fail to Reject H₀ — On target")',
+       font=Font(name="Calibri", size=10, bold=True))
+    # CI
+    lv(ws, 18, 9, "CI Lower Bound", 10,
+       formula=f"={xbar}-NORM.S.INV(1-J16/2)*J13", fmt="0.0000")
+    lv(ws, 19, 9, "CI Upper Bound", 10,
+       formula=f"={xbar}+NORM.S.INV(1-J16/2)*J13", fmt="0.0000")
 
-    # CI Lower
-    row = 24
-    apply_label_value_pair(ws, row, 8, "CI Lower Bound", 9,
-                           formula=f"={xbar}-NORM.S.INV(1-I22/2)*I19",
-                           num_format="0.0000")
+    # --- Section 7: Assessment Summary ---
+    section_row(ws, 21, 9, 10, "VII. ASSESSMENT SUMMARY")
 
-    # CI Upper
-    row = 25
-    apply_label_value_pair(ws, row, 8, "CI Upper Bound", 9,
-                           formula=f"={xbar}+NORM.S.INV(1-I22/2)*I19",
-                           num_format="0.0000")
+    # Centering
+    lv(ws, 22, 9, "1. Centering", 10,
+       formula=f'=IF({sigma}=0,IF({C_TM}-{xbar}=0,"✅ Perfectly centered (σ=0)","⚠ σ=0 but shift of "&TEXT({C_TM}-{xbar},"0.000")&" needed"),IF(ABS({C_TM}-{xbar})<{sigma}*0.05,"✅ Well-centered","⚠ Off-target by "&TEXT({C_TM}-{xbar},"0.000")))',
+       font=Font(name="Calibri", size=10))
+    # Capability
+    lv(ws, 23, 9, "2. Capability", 10,
+       formula=f'=IF({sigma}=0,"✅ Perfect (σ=0, index=∞)",IF(G18>={C_TARGET},"✅ Capable: Cpk "&TEXT(G18,"0.000")&" ≥ "&TEXT({C_TARGET},"0.00"),IF(G18>=1,"⚠ Marginal: Cpk "&TEXT(G18,"0.000"),"❌ Not Capable: Cpk "&TEXT(G18,"0.000"))))',
+       font=Font(name="Calibri", size=10))
+    # Robustness
+    lv(ws, 24, 9, "3. Robustness", 10,
+       formula=f'=IF({sigma}=0,"✅ Robust (σ=0)",IF(AND({C_LSL}<G24,{C_USL}>G25),"✅ Robust: ±4σ within specs",IF(AND({C_LSL}<G22,{C_USL}>G23),"⚠ Marginal: ±3σ OK, ±4σ NOT","❌ Not Robust: ±3σ breaches specs")))',
+       font=Font(name="Calibri", size=10))
+    # Tolerance
+    lv(ws, 25, 9, "4. Tolerance", 10,
+       formula=f'=IF({sigma}=0,"✅ Adequate (σ=0)",IF(G21<=G14,"✅ Adequate: Tol "&TEXT(G14,"0.000")&" ≥ required "&TEXT(G21,"0.000"),"❌ Inadequate: needs "&TEXT(G21,"0.000")&" but only "&TEXT(G14,"0.000")))',
+       font=Font(name="Calibri", size=10))
+    # Hypothesis
+    lv(ws, 26, 9, "5. Hypothesis", 10,
+       formula='=J17', font=Font(name="Calibri", size=10))
 
-    # ========== SECTION 6: VERDICT ==========
-    row = 26
-    ws.merge_cells("B26:C26")
-    apply_header_row(ws, row, [2, 5, 6], ["", "VI. OVERALL VERDICT", ""])
+    # --- OVERALL VERDICT ---
+    section_row(ws, 28, 2, 10, "")
+    ws.merge_cells("B28:J28")
+    vc = ws.cell(row=28, column=2)
+    vc.value = f'=IF(OR(G18<1,G21>G14),"❌ ACTION REQUIRED — Process not capable",IF(OR(G18<{C_TARGET},ABS({C_TM}-{xbar})>{sigma}*0.05,J15<J16),"⚠ MARGINAL — Review recommendations","✅ PROCESS HEALTH: GOOD"))'
+    vc.font = Font(name="Calibri", size=14, bold=True, color=WHITE)
+    vc.alignment = Alignment(horizontal="center", vertical="center")
+    vc.fill = PatternFill(start_color=DARK_BLUE, end_color=DARK_BLUE, fill_type="solid")
 
-    row = 27
-    vc = ws.cell(row=row, column=5,
-                 value='=IF(F9="∞","✅ GOOD — Perfect capability (σ=0)",'
-                       'IF(F9>=C14,"✅ GOOD — Process is capable",'
-                       'IF(F9>=1,"⚠️ MARGINAL — Acceptable but below target",'
-                       '"❌ ACTION REQUIRED — Process not capable")))')
-    vc.font = Font(name="Calibri", size=12, bold=True)
-    vc.alignment = LEFT
-    ws.merge_cells("E27:I27")
+    # Conditional formatting on verdict row
+    ws.conditional_formatting.add("B28",
+        FormulaRule(formula=['ISNUMBER(SEARCH("GOOD",B28))'],
+                    fill=VERDICT_GREEN, font=Font(color=WHITE, bold=True, size=14)))
+    ws.conditional_formatting.add("B28",
+        FormulaRule(formula=['ISNUMBER(SEARCH("MARGINAL",B28))'],
+                    fill=VERDICT_ORANGE, font=Font(color=WHITE, bold=True, size=14)))
+    ws.conditional_formatting.add("B28",
+        FormulaRule(formula=['ISNUMBER(SEARCH("ACTION",B28))'],
+                    fill=VERDICT_RED, font=Font(color=WHITE, bold=True, size=14)))
 
-    # Conditional formatting for Cpk
-    ws.conditional_formatting.add("F9",
-        CellIsRule(operator="greaterThanOrEqual", formula=["1.67"],
-                   fill=GOOD_FILL, font=Font(color="047857", bold=True)))
-    ws.conditional_formatting.add("F9",
-        CellIsRule(operator="between", formula=["1", "1.669"],
-                   fill=WARN_FILL, font=Font(color="92400E", bold=True)))
-    ws.conditional_formatting.add("F9",
-        CellIsRule(operator="lessThan", formula=["1"],
-                   fill=BAD_FILL, font=Font(color="991B1B", bold=True)))
+    # --- Recommendations ---
+    section_row(ws, 30, 2, 10, "RECOMMENDATIONS")
+    ws.merge_cells("B31:J31")
+    ws.cell(row=31, column=2).value = (
+        f'=IF(ABS({C_TM}-{xbar})>{sigma}*0.05,"• Adjust process mean by "&TEXT({C_TM}-{xbar},"0.000")&" to center on target.","")&'
+        f'IF(G18<{C_TARGET},CHAR(10)&"• Reduce variation (σ) to meet capability target of "&TEXT({C_TARGET},"0.00")&".","")'
+        f'&IF(G21>G14,CHAR(10)&"• Widen tolerance or reduce σ. Required: "&TEXT(G21,"0.000")&", current: "&TEXT(G14,"0.000")&".","")'
+        f'&IF(J15<J16,CHAR(10)&"• Hypothesis test shows significant mean shift (p="&TEXT(J15,"0.0000")&" < α="&TEXT(J16,"0.00")&").","")'
+        f'&IF(AND(G18>={C_TARGET},ABS({C_TM}-{xbar})<={sigma}*0.05,G21<=G14,J15>=J16),"• Process meets all criteria. Monitor for stability.","")'
+    )
+    ws.cell(row=31, column=2).font = Font(name="Calibri", size=10)
+    ws.cell(row=31, column=2).alignment = Alignment(horizontal="left", vertical="top", wrap_text=True)
+    ws.row_dimensions[31].height = 70
 
-    # Conditional formatting for Cp
-    ws.conditional_formatting.add("F8",
-        CellIsRule(operator="greaterThanOrEqual", formula=["1.67"],
-                   fill=GOOD_FILL, font=Font(color="047857", bold=True)))
-    ws.conditional_formatting.add("F8",
-        CellIsRule(operator="lessThan", formula=["1"],
-                   fill=BAD_FILL, font=Font(color="991B1B", bold=True)))
+    # Conditional formatting: highlight mode-disabled manual input cells
+    ws.conditional_formatting.add("C12:C14",
+        FormulaRule(formula=[f'$C$10="Use Data Worksheet"'],
+                    fill=PatternFill(start_color="E5E7EB", end_color="E5E7EB", fill_type="solid"),
+                    font=Font(color="9CA3AF")))
 
-    # Print setup
     ws.sheet_view.showGridLines = False
-    ws.print_area = "A1:I27"
+    ws.print_area = "A1:J31"
 
 
+# ===========================================================================
+# SHEET 2: Data Worksheet
+# ===========================================================================
 def create_data_sheet(wb):
-    """Sheet 2: Data Worksheet — Part-by-part entry with auto-calculations."""
     ws = wb.create_sheet("Data")
     ws.sheet_properties.tabColor = GREEN
 
-    ws.column_dimensions["A"].width = 2
-    ws.column_dimensions["B"].width = 6
-    ws.column_dimensions["C"].width = 24
-    ws.column_dimensions["D"].width = 18
-    ws.column_dimensions["E"].width = 4
-    ws.column_dimensions["F"].width = 24
-    ws.column_dimensions["G"].width = 18
+    for col, w in [("A",2),("B",8),("C",24),("D",18),("E",4),("F",26),("G",18)]:
+        ws.column_dimensions[col].width = w
 
     # Title
     ws.merge_cells("B1:G1")
-    t = ws.cell(row=1, column=2, value="Data Worksheet — Part-by-Part Entry")
-    t.font = TITLE_FONT
-    t.alignment = Alignment(horizontal="center")
+    ws.cell(row=1, column=2, value="Data Worksheet — Part-by-Part Entry").font = TITLE_FONT
+    ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
 
-    # Instructions
     ws.merge_cells("B2:G2")
-    inst = ws.cell(row=2, column=2,
-                   value="Enter DMC/Serial Number and measured Value for each part below. Statistics auto-calculate on the right.")
-    inst.font = Font(name="Calibri", size=9, italic=True, color=GRAY)
-    inst.alignment = Alignment(horizontal="center")
+    ws.cell(row=2, column=2,
+            value='Enter DMC and measured Value below. Statistics auto-link to Analysis sheet when Mode = "Use Data Worksheet".').font = SUBTITLE_FONT
+    ws.cell(row=2, column=2).alignment = Alignment(horizontal="center")
+
+    # Characteristic info header (linked from Analysis)
+    ws.merge_cells("B3:D3")
+    ws.cell(row=3, column=2,
+            value='=Analysis!C5&" | Tₘ="&TEXT(Analysis!C6,"0.000")&" | LSL="&TEXT(Analysis!C7,"0.000")&" | USL="&TEXT(Analysis!C8,"0.000")').font = Font(
+        name="Calibri", size=10, bold=True, color=BLUE)
 
     # Data table headers
     row = 4
-    apply_header_row(ws, row, [2, 3, 4], ["#", "DMC / Serial Number", "Value"])
+    header_row(ws, row, 2, ["#", "DMC / Serial Number", "Value"])
 
-    # Data entry rows (50 rows)
-    MAX_ROWS = 50
-    for i in range(1, MAX_ROWS + 1):
+    # Data entry rows
+    for i in range(1, MAX_DATA_ROWS + 1):
         r = row + i
         ws.cell(row=r, column=2, value=i).font = Font(size=9, color=GRAY)
         ws.cell(row=r, column=2).alignment = CENTER
@@ -378,288 +453,307 @@ def create_data_sheet(wb):
         ws.cell(row=r, column=4).border = THIN_BORDER
         ws.cell(row=r, column=4).fill = INPUT_FILL
         ws.cell(row=r, column=4).number_format = "0.000"
+        # Alternating rows
+        if i % 2 == 0:
+            ws.cell(row=r, column=3).fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+            ws.cell(row=r, column=4).fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
 
-    # --- Auto-calculated statistics panel ---
-    row = 4
-    apply_header_row(ws, row, [6, 7], ["STATISTICS (Auto-Calculated)", "Value"])
+    last_row = row + MAX_DATA_ROWS
+    data_range = f"D5:D{last_row}"
 
-    data_range = "D5:D54"
+    # --- Statistics Panel ---
+    section_row(ws, 4, 6, 7, "AUTO-CALCULATED STATISTICS")
 
     stats = [
-        ("Count (n)", f"=COUNTA({data_range})", "0"),
-        ("Mean (x̄)", f"=IF(G5>=2,AVERAGE({data_range}),\"\")", "0.00000"),
-        ("Std Dev (σ)", f"=IF(G5>=2,STDEV.S({data_range}),\"\")", "0.00000"),
-        ("Min", f"=IF(G5>=1,MIN({data_range}),\"\")", "0.000"),
-        ("Max", f"=IF(G5>=1,MAX({data_range}),\"\")", "0.000"),
-        ("Range", f"=IF(G5>=2,G9-G8,\"\")", "0.000"),
-        ("Median", f"=IF(G5>=1,MEDIAN({data_range}),\"\")", "0.000"),
-        ("Q1 (25th %ile)", f"=IF(G5>=4,PERCENTILE({data_range},0.25),\"\")", "0.000"),
-        ("Q3 (75th %ile)", f"=IF(G5>=4,PERCENTILE({data_range},0.75),\"\")", "0.000"),
-        ("IQR", f"=IF(G5>=4,G13-G12,\"\")", "0.000"),
+        ("Count (n)",       f"=COUNTA({data_range})",                                          "0"),
+        ("Mean (x̄)",       f'=IF(G5>=2,AVERAGE({data_range}),"")',                            "0.00000"),
+        ("Std Dev (σ)",     f'=IF(G5>=2,STDEV.S({data_range}),"")',                            "0.00000"),
+        ("Min",             f'=IF(G5>=1,MIN({data_range}),"")',                                "0.000"),
+        ("Max",             f'=IF(G5>=1,MAX({data_range}),"")',                                "0.000"),
+        ("Range",           f'=IF(G5>=2,G9-G8,"")',                                            "0.000"),
+        ("Median",          f'=IF(G5>=1,MEDIAN({data_range}),"")',                             "0.000"),
+        ("Q1 (25th %ile)",  f'=IF(G5>=4,PERCENTILE({data_range},0.25),"")',                   "0.000"),
+        ("Q3 (75th %ile)",  f'=IF(G5>=4,PERCENTILE({data_range},0.75),"")',                   "0.000"),
+        ("IQR",             f'=IF(G5>=4,G13-G12,"")',                                          "0.000"),
+        ("Skewness",        f'=IF(G5>=3,SKEW({data_range}),"")',                               "0.000"),
+        ("Kurtosis",        f'=IF(G5>=4,KURT({data_range}),"")',                               "0.000"),
     ]
 
     for i, (label, formula, fmt) in enumerate(stats):
-        r = 5 + i
-        apply_label_value_pair(ws, r, 6, label, 7, formula=formula, num_format=fmt)
+        lv(ws, 5 + i, 6, label, 7, formula=formula, fmt=fmt, fill=CALC_FILL)
 
-    # Quick-link instruction
-    row = 16
-    ws.merge_cells("F16:G16")
-    tip = ws.cell(row=row, column=6,
-                  value="💡 Copy G5→C13, G6→C11, G7→C12 in the Analysis sheet to use this data.")
-    tip.font = Font(name="Calibri", size=9, italic=True, color=ORANGE)
+    # Status
+    status_row = 5 + len(stats) + 1
+    ws.merge_cells(f"F{status_row}:G{status_row}")
+    ws.cell(row=status_row, column=6).value = (
+        f'=IF(G5>=2,"✅ "&G5&" data points ready. Analysis sheet auto-linked.","⚠ Need ≥2 data points.")')
+    ws.cell(row=status_row, column=6).font = Font(name="Calibri", size=10, bold=True, color=DARK_GREEN)
 
-    # Alternating row colors for data entry
-    for i in range(1, MAX_ROWS + 1):
-        r = 4 + i
-        if i % 2 == 0:
-            for col in [2, 3, 4]:
-                c = ws.cell(row=r, column=col)
-                if c.fill == INPUT_FILL:
-                    c.fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+    # Quick Cp/Cpk preview
+    preview_row = status_row + 2
+    section_row(ws, preview_row, 6, 7, "QUICK PREVIEW (from worksheet data)")
+    lv(ws, preview_row + 1, 6, "Cp (preview)", 7,
+       formula=f'=IF(G7=""," — ", IF(G7=0,"∞",(Analysis!C8-Analysis!C7)/(6*G7)))', fmt="0.000")
+    add_cpk_cond_fmt(ws, f"G{preview_row+1}")
+    lv(ws, preview_row + 2, 6, "Cpk (preview)", 7,
+       formula=f'=IF(G7=""," — ", IF(G7=0,"∞",MIN((Analysis!C8-G6)/(3*G7),(G6-Analysis!C7)/(3*G7))))', fmt="0.000")
+    add_cpk_cond_fmt(ws, f"G{preview_row+2}")
 
     ws.sheet_view.showGridLines = False
 
 
+# ===========================================================================
+# SHEET 3: Charts
+# ===========================================================================
 def create_charts_sheet(wb):
-    """Sheet 3: Charts — Histogram and capability visualization using helper data."""
     ws = wb.create_sheet("Charts")
     ws.sheet_properties.tabColor = ORANGE
 
-    ws.column_dimensions["A"].width = 2
-    ws.column_dimensions["B"].width = 14
+    for col, w in [("A",2),("B",12),("C",14),("D",14),("E",14),("F",14)]:
+        ws.column_dimensions[col].width = w
 
-    # Title
-    ws.merge_cells("B1:K1")
-    t = ws.cell(row=1, column=2, value="Visualization — Capability Charts")
-    t.font = TITLE_FONT
-    t.alignment = Alignment(horizontal="center")
+    ws.merge_cells("B1:F1")
+    ws.cell(row=1, column=2, value="Visualization — Capability Charts").font = TITLE_FONT
+    ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
 
-    # --- Helper data for a bell curve (pre-calculated standard normal z-values) ---
-    # We'll generate a bell curve using z = -4 to +4 in steps of 0.5
-    # The chart plots: x = x_bar + z*sigma, y = normal PDF
+    # --- Bell curve helper data (z from -4 to +4 in 0.25 steps) ---
+    section_row(ws, 3, 2, 5, "Normal Distribution Curve Data (auto-calculated)")
 
-    ws.cell(row=3, column=2, value="Bell Curve Helper Data").font = SUBHEADER_FONT
+    header_row(ws, 4, 2, ["z", "x Value", "Current PDF", "Centered PDF"])
 
-    ws.cell(row=4, column=2, value="z").font = HEADER_FONT
-    ws.cell(row=4, column=2).fill = HEADER_FILL
-    ws.cell(row=4, column=3, value="x Value").font = HEADER_FONT
-    ws.cell(row=4, column=3).fill = HEADER_FILL
-    ws.cell(row=4, column=4, value="Density").font = HEADER_FONT
-    ws.cell(row=4, column=4).fill = HEADER_FILL
-
-    z_values = [i * 0.5 for i in range(-8, 9)]  # -4 to +4 in 0.5 steps
-    xbar_ref = "Analysis!C11"
-    sigma_ref = "Analysis!C12"
+    z_values = [i * 0.25 for i in range(-16, 17)]  # -4 to +4 in 0.25 steps
+    xbar_ref = "Analysis!G9"
+    sigma_ref = "Analysis!G10"
+    tm_ref = "Analysis!C6"
 
     for i, z in enumerate(z_values):
         r = 5 + i
-        ws.cell(row=r, column=2, value=z).number_format = "0.0"
+        ws.cell(row=r, column=2, value=z).number_format = "0.00"
+        ws.cell(row=r, column=2).border = THIN_BORDER
         # x = x_bar + z * sigma
         ws.cell(row=r, column=3,
-                value=f"={xbar_ref}+B{r}*{sigma_ref}").number_format = "0.000"
-        # y = (1/(sigma*SQRT(2*PI)))*EXP(-0.5*z^2)
+                value=f"={xbar_ref}+B{r}*{sigma_ref}").number_format = "0.0000"
+        ws.cell(row=r, column=3).border = THIN_BORDER
+        # Current PDF
         ws.cell(row=r, column=4,
                 value=f'=IF({sigma_ref}>0,(1/({sigma_ref}*SQRT(2*PI())))*EXP(-0.5*B{r}^2),0)').number_format = "0.0000"
+        ws.cell(row=r, column=4).border = THIN_BORDER
+        # Centered PDF (at Tm)
+        ws.cell(row=r, column=5,
+                value=f'=IF({sigma_ref}>0,(1/({sigma_ref}*SQRT(2*PI())))*EXP(-0.5*((C{r}-{tm_ref})/{sigma_ref})^2),0)').number_format = "0.0000"
+        ws.cell(row=r, column=5).border = THIN_BORDER
 
     last_data_row = 5 + len(z_values) - 1
 
-    # --- Bell Curve Chart ---
+    # Chart 1: Process Distribution (Current + Centered)
     chart1 = LineChart()
-    chart1.title = "Process Distribution (Normal Curve)"
+    chart1.title = "1. Current Process Distribution"
     chart1.y_axis.title = "Density"
     chart1.x_axis.title = "Measurement Value"
     chart1.style = 10
-    chart1.width = 22
-    chart1.height = 14
+    chart1.width = 24
+    chart1.height = 15
+    chart1.legend.position = "b"
 
-    x_data = Reference(ws, min_col=3, min_row=4, max_row=last_data_row)
-    y_data = Reference(ws, min_col=4, min_row=4, max_row=last_data_row)
+    x_cats = Reference(ws, min_col=3, min_row=5, max_row=last_data_row)
+    y_current = Reference(ws, min_col=4, min_row=4, max_row=last_data_row)
+    y_centered = Reference(ws, min_col=5, min_row=4, max_row=last_data_row)
 
-    chart1.add_data(y_data, titles_from_data=True)
-    chart1.set_categories(x_data)
-    chart1.series[0].graphicalProperties.line.width = 25000  # ~2pt
+    chart1.add_data(y_current, titles_from_data=True)
+    chart1.add_data(y_centered, titles_from_data=True)
+    chart1.set_categories(x_cats)
 
-    ws.add_chart(chart1, "F3")
+    chart1.series[0].graphicalProperties.line.width = 25000
+    from openpyxl.chart.shapes import GraphicalProperties
+    from openpyxl.drawing.line import LineProperties, LineEndProperties
+    chart1.series[0].graphicalProperties.line.solidFill = "B91C1C"  # Red curve
+    chart1.series[1].graphicalProperties.line.solidFill = "007BC5"  # Blue curve
+    chart1.series[1].graphicalProperties.line.dashStyle = "dash"
 
-    # --- Specification summary below ---
-    summary_row = last_data_row + 2
-    ws.cell(row=summary_row, column=2, value="Specification Lines Reference").font = SUBHEADER_FONT
-    ws.cell(row=summary_row + 1, column=2, value="LSL").font = LABEL_FONT
-    ws.cell(row=summary_row + 1, column=3, value=f"=Analysis!C7").number_format = "0.000"
-    ws.cell(row=summary_row + 2, column=2, value="USL").font = LABEL_FONT
-    ws.cell(row=summary_row + 2, column=3, value=f"=Analysis!C8").number_format = "0.000"
-    ws.cell(row=summary_row + 3, column=2, value="Target (Tₘ)").font = LABEL_FONT
-    ws.cell(row=summary_row + 3, column=3, value=f"=Analysis!C6").number_format = "0.000"
-    ws.cell(row=summary_row + 4, column=2, value="Mean (x̄)").font = LABEL_FONT
-    ws.cell(row=summary_row + 4, column=3, value=f"=Analysis!C11").number_format = "0.000"
+    ws.add_chart(chart1, "G3")
 
-    # --- Capability Bar Chart ---
-    ws.cell(row=3, column=14, value="Metric").font = HEADER_FONT
-    ws.cell(row=3, column=14).fill = HEADER_FILL
-    ws.cell(row=3, column=15, value="Value").font = HEADER_FONT
-    ws.cell(row=3, column=15).fill = HEADER_FILL
-    ws.cell(row=3, column=16, value="Target").font = HEADER_FONT
-    ws.cell(row=3, column=16).fill = HEADER_FILL
+    # --- Capability bar chart data ---
+    cap_start = last_data_row + 3
+    section_row(ws, cap_start, 2, 5, "Capability Index Comparison")
+    header_row(ws, cap_start + 1, 2, ["Metric", "Value", "Target", ""])
+    ws.cell(row=cap_start + 2, column=2, value="Cp").border = THIN_BORDER
+    ws.cell(row=cap_start + 2, column=3, value="=Analysis!G17").border = THIN_BORDER
+    ws.cell(row=cap_start + 2, column=3).number_format = "0.00"
+    ws.cell(row=cap_start + 2, column=4, value=f"=Analysis!{C_TARGET}").border = THIN_BORDER
+    ws.cell(row=cap_start + 2, column=4).number_format = "0.00"
 
-    ws.cell(row=4, column=14, value="Cp")
-    ws.cell(row=4, column=15, value="=Analysis!F8").number_format = "0.00"
-    ws.cell(row=4, column=16, value=f"=Analysis!C14").number_format = "0.00"
-    ws.cell(row=5, column=14, value="Cpk")
-    ws.cell(row=5, column=15, value="=Analysis!F9").number_format = "0.00"
-    ws.cell(row=5, column=16, value=f"=Analysis!C14").number_format = "0.00"
+    ws.cell(row=cap_start + 3, column=2, value="Cpk").border = THIN_BORDER
+    ws.cell(row=cap_start + 3, column=3, value="=Analysis!G18").border = THIN_BORDER
+    ws.cell(row=cap_start + 3, column=3).number_format = "0.00"
+    ws.cell(row=cap_start + 3, column=4, value=f"=Analysis!{C_TARGET}").border = THIN_BORDER
+    ws.cell(row=cap_start + 3, column=4).number_format = "0.00"
 
     chart2 = BarChart()
-    chart2.title = "Capability Index vs Target"
+    chart2.title = "2. Capability Index vs Target"
     chart2.type = "col"
     chart2.style = 10
-    chart2.width = 14
+    chart2.width = 16
     chart2.height = 12
     chart2.y_axis.title = "Index Value"
+    chart2.legend.position = "b"
 
-    cats = Reference(ws, min_col=14, min_row=4, max_row=5)
-    vals = Reference(ws, min_col=15, min_row=3, max_row=5)
-    tgts = Reference(ws, min_col=16, min_row=3, max_row=5)
+    cats = Reference(ws, min_col=2, min_row=cap_start + 2, max_row=cap_start + 3)
+    vals = Reference(ws, min_col=3, min_row=cap_start + 1, max_row=cap_start + 3)
+    tgts = Reference(ws, min_col=4, min_row=cap_start + 1, max_row=cap_start + 3)
     chart2.add_data(vals, titles_from_data=True)
     chart2.add_data(tgts, titles_from_data=True)
     chart2.set_categories(cats)
 
-    ws.add_chart(chart2, "F20")
+    ws.add_chart(chart2, f"G{cap_start}")
+
+    # Spec line reference
+    ref_start = cap_start + 6
+    section_row(ws, ref_start, 2, 4, "Specification Lines")
+    lv(ws, ref_start+1, 2, "LSL", 3, formula="=Analysis!C7", fmt="0.000")
+    lv(ws, ref_start+2, 2, "USL", 3, formula="=Analysis!C8", fmt="0.000")
+    lv(ws, ref_start+3, 2, "Target (Tₘ)", 3, formula="=Analysis!C6", fmt="0.000")
+    lv(ws, ref_start+4, 2, "Mean (x̄)", 3, formula="=Analysis!G9", fmt="0.000")
 
     ws.sheet_view.showGridLines = False
 
 
+# ===========================================================================
+# SHEET 4: History
+# ===========================================================================
 def create_history_sheet(wb):
-    """Sheet 4: History — Template for recording analysis runs."""
     ws = wb.create_sheet("History")
-    ws.sheet_properties.tabColor = "8B5CF6"  # Purple
+    ws.sheet_properties.tabColor = "8B5CF6"
 
     ws.column_dimensions["A"].width = 2
 
-    # Title
-    ws.merge_cells("B1:K1")
-    t = ws.cell(row=1, column=2, value="Analysis History Log")
-    t.font = TITLE_FONT
-    t.alignment = Alignment(horizontal="center")
+    ws.merge_cells("B1:O1")
+    ws.cell(row=1, column=2, value="Analysis History Log").font = TITLE_FONT
+    ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("B2:K2")
-    inst = ws.cell(row=2, column=2,
-                   value="Record each analysis run below. Copy values from the Analysis sheet after each run.")
-    inst.font = Font(name="Calibri", size=9, italic=True, color=GRAY)
-    inst.alignment = Alignment(horizontal="center")
+    ws.merge_cells("B2:O2")
+    ws.cell(row=2, column=2,
+            value="Row 4 is auto-linked to the current Analysis. To save a run, copy-paste Row 4 as VALUES into the next empty row.").font = SUBTITLE_FONT
+    ws.cell(row=2, column=2).alignment = Alignment(horizontal="center")
 
-    # Headers
     headers = [
-        "Date", "Characteristic", "Tₘ", "LSL", "USL", "x̄", "σ", "n",
+        "Date", "Name", "Mode", "Tₘ", "LSL", "USL", "x̄", "σ", "n",
         "Cp", "Cpk", "PPM Total", "Shift (Δ)", "Verdict"
     ]
-    col_widths = [12, 18, 10, 10, 10, 12, 12, 8, 10, 10, 12, 12, 30]
+    col_widths = [12, 16, 16, 10, 10, 10, 12, 12, 6, 10, 10, 12, 12, 36]
 
     for i, (h, w) in enumerate(zip(headers, col_widths)):
         col = i + 2
         ws.column_dimensions[get_column_letter(col)].width = w
-        cell = ws.cell(row=4, column=col, value=h)
+        cell = ws.cell(row=3, column=col, value=h)
         cell.font = HEADER_FONT
         cell.fill = HEADER_FILL
         cell.alignment = CENTER
         cell.border = THIN_BORDER
 
-    # Pre-fill first row with formulas linking to Analysis sheet
-    r = 5
+    # Pre-linked first row
     formulas = [
-        ("=TODAY()", "YYYY-MM-DD"),
-        ("=Analysis!C5", None),
-        ("=Analysis!C6", "0.000"),
-        ("=Analysis!C7", "0.000"),
-        ("=Analysis!C8", "0.000"),
-        ("=Analysis!C11", "0.000"),
-        ("=Analysis!C12", "0.00000"),
-        ("=Analysis!C13", "0"),
-        ("=Analysis!F8", "0.000"),
-        ("=Analysis!F9", "0.000"),
-        ("=Analysis!F24", "#,##0.0"),
-        ("=Analysis!F10", "0.000"),
-        ("=Analysis!E27", None),
+        ('=TODAY()', "YYYY-MM-DD"),
+        ('=Analysis!C5', None),
+        ('=Analysis!C10', None),
+        ('=Analysis!C6', "0.000"),
+        ('=Analysis!C7', "0.000"),
+        ('=Analysis!C8', "0.000"),
+        ('=Analysis!G9', "0.00000"),
+        ('=Analysis!G10', "0.00000"),
+        ('=Analysis!G11', "0"),
+        ('=Analysis!G17', "0.000"),
+        ('=Analysis!G18', "0.000"),
+        ('=Analysis!J10', "#,##0.0"),
+        ('=Analysis!G19', "0.000"),
+        ('=Analysis!B28', None),
     ]
 
-    for i, (formula, fmt) in enumerate(formulas):
+    for i, (f, fmt) in enumerate(formulas):
         col = i + 2
-        cell = ws.cell(row=r, column=col, value=formula)
+        cell = ws.cell(row=4, column=col, value=f)
         cell.border = THIN_BORDER
         cell.alignment = CENTER
+        cell.fill = RESULT_FILL
         if fmt:
             cell.number_format = fmt
-        cell.fill = RESULT_FILL
 
-    # Empty rows for future entries
-    for row_idx in range(6, 56):
-        for col in range(2, 15):
+    # Empty rows
+    for row_idx in range(5, 55):
+        for col in range(2, 16):
             cell = ws.cell(row=row_idx, column=col)
             cell.border = THIN_BORDER
-            cell.fill = INPUT_FILL if row_idx % 2 == 0 else PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+            cell.fill = INPUT_FILL if row_idx % 2 == 0 else PatternFill(
+                start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
 
-    # Conditional formatting for Cpk column
-    ws.conditional_formatting.add("K5:K55",
-        CellIsRule(operator="greaterThanOrEqual", formula=["1.67"],
-                   fill=GOOD_FILL, font=Font(color="047857", bold=True)))
-    ws.conditional_formatting.add("K5:K55",
-        CellIsRule(operator="between", formula=["1", "1.669"],
-                   fill=WARN_FILL, font=Font(color="92400E", bold=True)))
-    ws.conditional_formatting.add("K5:K55",
-        CellIsRule(operator="lessThan", formula=["1"],
-                   fill=BAD_FILL, font=Font(color="991B1B", bold=True)))
+    add_cpk_cond_fmt(ws, "L4:L55")
+    add_cpk_cond_fmt(ws, "K4:K55")
 
     ws.sheet_view.showGridLines = False
 
 
+# ===========================================================================
+# SHEET 5: Reference
+# ===========================================================================
 def create_reference_sheet(wb):
-    """Sheet 5: Reference — Formula definitions and usage guide."""
     ws = wb.create_sheet("Reference")
     ws.sheet_properties.tabColor = GRAY
 
     ws.column_dimensions["A"].width = 2
-    ws.column_dimensions["B"].width = 80
+    ws.column_dimensions["B"].width = 90
 
-    # Title
-    ws.merge_cells("B1:B1")
-    t = ws.cell(row=1, column=2, value="Reference Guide — Formulas & Definitions")
-    t.font = TITLE_FONT
+    ws.cell(row=1, column=2, value="Reference Guide — Formulas, Definitions & How to Use").font = TITLE_FONT
 
     content = [
-        ("Core Capability Formulas", True),
-        ("• Cp = (USL − LSL) / 6σ  — Potential capability if process is perfectly centered", False),
-        ("• Cpk = min[(USL − x̄) / 3σ,  (x̄ − LSL) / 3σ]  — Actual capability with centering error", False),
-        ("• Required Shift (Δ) = Tₘ − x̄  — How far to adjust the process mean", False),
-        ("• Required Tolerance = Target Index × 6σ  — Minimum tolerance band needed", False),
-        ("", False),
-        ("Capability Index Interpretation", True),
-        ("• Cpk ≥ 1.67  →  ✅ GOOD — Process is capable (automotive standard)", False),
-        ("• 1.33 ≤ Cpk < 1.67  →  ⚠️ ACCEPTABLE — Meets minimum but below target", False),
-        ("• 1.00 ≤ Cpk < 1.33  →  ⚠️ MARGINAL — High risk, improvement needed", False),
-        ("• Cpk < 1.00  →  ❌ NOT CAPABLE — Process produces significant defects", False),
-        ("", False),
-        ("Probability & PPM", True),
-        ("• P(x > USL) — Probability a part exceeds upper spec limit", False),
-        ("• P(x < LSL) — Probability a part falls below lower spec limit", False),
-        ("• PPM = Probability × 1,000,000 — Parts Per Million defective", False),
-        ("", False),
-        ("Hypothesis Testing", True),
-        ("• H₀: μ = Tₘ (Null hypothesis — process is on target)", False),
-        ("• Z = (x̄ − Tₘ) / (σ / √n) — Test statistic", False),
-        ("• p-value < α → Reject H₀ → Significant evidence mean has shifted", False),
-        ("• p-value ≥ α → Fail to Reject H₀ → No significant shift detected", False),
-        ("", False),
-        ("Spread Metrics", True),
-        ("• 6σ Spread — Contains ~99.73% of process output (±3σ)", False),
-        ("• 8σ Spread — Contains ~99.9937% of process output (±4σ)", False),
         ("", False),
         ("How to Use This Workbook", True),
-        ("1. Enter specifications (Tₘ, LSL, USL) in the Analysis sheet", False),
-        ("2. Enter part data in the Data sheet OR enter x̄ and σ manually in Analysis", False),
-        ("3. If using Data sheet, copy n→C13, x̄→C11, σ→C12 in the Analysis sheet", False),
-        ("4. Read results in the Analysis sheet — Cp, Cpk, PPM, shift, verdict", False),
-        ("5. View charts in the Charts sheet", False),
-        ("6. Copy results to History sheet to track runs over time", False),
+        ("1. Enter specifications (Tₘ, LSL, USL) in the Analysis sheet (blue cells)", False),
+        ("2. Choose Mode: 'Enter Manually' or 'Use Data Worksheet' (dropdown in C10)", False),
+        ("3. If Manual: enter x̄, σ, n directly in the Analysis sheet", False),
+        ("4. If Worksheet: enter part data in the Data sheet — mean & σ auto-link", False),
+        ("5. All results, probability, hypothesis test, and verdict update INSTANTLY", False),
+        ("6. View charts in the Charts sheet (bell curve + capability bars)", False),
+        ("7. To save a run: go to History sheet, copy Row 4, paste as VALUES into Row 5+", False),
+        ("", False),
+        ("Core Capability Formulas", True),
+        ("  Cp = (USL − LSL) / 6σ  — Potential capability if process is perfectly centered", False),
+        ("  Cpk = min[(USL − x̄) / 3σ,  (x̄ − LSL) / 3σ]  — Actual capability with centering error", False),
+        ("  Required Shift (Δ) = Tₘ − x̄  — How far to adjust the process mean", False),
+        ("  Required Tolerance = Target Index × 6σ  — Minimum tolerance band needed", False),
+        ("", False),
+        ("Capability Index Interpretation (Automotive Standards)", True),
+        ("  Cpk ≥ 1.67  →  ✅ GOOD — Capable (standard automotive target)", False),
+        ("  1.33 ≤ Cpk < 1.67  →  ⚠ ACCEPTABLE — Meets minimum but below target", False),
+        ("  1.00 ≤ Cpk < 1.33  →  ⚠ MARGINAL — High risk, improvement needed", False),
+        ("  Cpk < 1.00  →  ❌ NOT CAPABLE — Produces significant defects", False),
+        ("", False),
+        ("Probability & PPM", True),
+        ("  P(x > USL) — Probability a part exceeds upper spec limit", False),
+        ("  P(x < LSL) — Probability a part falls below lower spec limit", False),
+        ("  PPM = Probability × 1,000,000 — Parts Per Million defective", False),
+        ("", False),
+        ("Hypothesis Testing", True),
+        ("  H₀: μ = Tₘ (process is on target)", False),
+        ("  Z = (x̄ − Tₘ) / (σ / √n)", False),
+        ("  p-value < α → Reject H₀ → Significant shift detected", False),
+        ("  p-value ≥ α → Fail to Reject H₀ → No significant shift", False),
+        ("  Two-Sided: tests if mean differs in either direction", False),
+        ("  Upper-Sided: tests if mean is significantly above target", False),
+        ("  Lower-Sided: tests if mean is significantly below target", False),
+        ("", False),
+        ("Robustness Assessment", True),
+        ("  ROBUST: ±4σ spread contained within specification limits", False),
+        ("  MARGINAL: ±3σ contained but ±4σ is NOT — low tolerance for future shifts", False),
+        ("  NOT ROBUST: ±3σ breaches specification limits", False),
+        ("", False),
+        ("Spread Metrics", True),
+        ("  6σ Spread — Contains ~99.73% of process output (±3σ)", False),
+        ("  8σ Spread — Contains ~99.9937% of process output (±4σ)", False),
+        ("", False),
+        ("Color Coding", True),
+        ("  🟢 Green cells = Good / Capable / Within target", False),
+        ("  🟡 Yellow cells = Warning / Marginal", False),
+        ("  🔴 Red cells = Bad / Action Required / Not capable", False),
+        ("  🔵 Blue cells = Input cells (enter your data here)", False),
     ]
 
     row = 3
@@ -667,7 +761,7 @@ def create_reference_sheet(wb):
         cell = ws.cell(row=row, column=2, value=text)
         if is_header:
             cell.font = Font(name="Calibri", size=12, bold=True, color=DARK_BLUE)
-            cell.fill = SUBHEADER_FILL
+            cell.fill = SECTION_FILL
         else:
             cell.font = Font(name="Calibri", size=10)
         cell.alignment = LEFT
@@ -676,6 +770,9 @@ def create_reference_sheet(wb):
     ws.sheet_view.showGridLines = False
 
 
+# ===========================================================================
+# Main
+# ===========================================================================
 def main():
     wb = Workbook()
 
@@ -685,9 +782,22 @@ def main():
     create_history_sheet(wb)
     create_reference_sheet(wb)
 
+    # Set Analysis as the default active sheet
+    wb.active = 0
+
     wb.save(OUTPUT_FILE)
     print(f"✅ Excel tool generated: {OUTPUT_FILE}")
     print(f"   Sheets: Analysis | Data | Charts | History | Reference")
+    print(f"   Features:")
+    print(f"     - Mode toggle: Enter Manually / Use Data Worksheet (dropdown)")
+    print(f"     - Auto-linked x̄, σ, n from Data sheet")
+    print(f"     - Full assessment: Centering, Capability, Robustness, Tolerance, Hypothesis")
+    print(f"     - Overall verdict with conditional color formatting")
+    print(f"     - Recommendations formula")
+    print(f"     - Bell curve (current + centered) chart")
+    print(f"     - Capability bar chart (Cp/Cpk vs Target)")
+    print(f"     - History log with pre-linked first row")
+    print(f"     - {MAX_DATA_ROWS} data entry rows in worksheet")
 
 
 if __name__ == "__main__":
