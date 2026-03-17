@@ -99,5 +99,5 @@ Then publish the host URL inside your company network.
 ## Requirements
 
 - Python 3.10 or higher
-- Modern browser
+- Modern browser https://statistical-calculator-sw83whcgzqniq4ndfpexgt.streamlit.app/
 - Local network access only if you plan to share it on an internal server
