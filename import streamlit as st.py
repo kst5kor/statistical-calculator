@@ -1,5 +1,4 @@
 import streamlit as st
-import streamlit.components.v1 as components
 import pandas as pd
 import numpy as np
 import scipy.stats as stats
@@ -10,7 +9,7 @@ import datetime
 import re
 from functools import lru_cache
 from openpyxl import Workbook
-from openpyxl.styles import Font, Fill, Alignment, Border, Side, PatternFill
+from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
 
@@ -439,7 +438,7 @@ class PlotManager:
         return x, np.nan_to_num(y)
 
     def update_plots(self, results):
-        LSL, USL, x_bar, s, Tm, target_index_value, dp = (
+        LSL, USL, x_bar, s, Tm, _target_index_value, dp = (
             results.get("lsl"),
             results.get("usl"),
             results.get("x_bar"),
@@ -1321,7 +1320,7 @@ class ExportManager:
                 else ("good" if summary["verdict_color"] == "green" else "dataCell")
             )
         )
-        verdict_style = self.styles.get(verdict_style_key, {})
+        _verdict_style = self.styles.get(verdict_style_key, {})  # noqa: F841
 
         cpk_meets_target = (
             np.isfinite(results.get("CpkCurrent", np.nan))
@@ -3359,29 +3358,25 @@ with tab_data:
 
         with upload_cols[2]:
             st.markdown("**Quick actions:**")
-            # --- Download Template ---
-            import io as _io
-            from openpyxl import Workbook as _Wb
-            from openpyxl.styles import Font as _Ft, Alignment as _Al, PatternFill as _Pf, Border as _Bd, Side as _Sd
 
+            @st.cache_data
             def _make_template():
-                """Generate a pre-formatted .xlsx template for data entry."""
-                wb = _Wb()
+                """Generate a pre-formatted .xlsx template for data entry (cached)."""
+                wb = Workbook()
                 ws = wb.active
                 ws.title = "Data"
                 ws.column_dimensions["A"].width = 8
                 ws.column_dimensions["B"].width = 28
                 ws.column_dimensions["C"].width = 18
 
-                # Header style
-                hdr_font = _Ft(name="Calibri", bold=True, size=11, color="FFFFFF")
-                hdr_fill = _Pf(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
-                hdr_align = _Al(horizontal="center", vertical="center")
-                thin_border = _Bd(
-                    left=_Sd(style="thin", color="D1D5DB"),
-                    right=_Sd(style="thin", color="D1D5DB"),
-                    top=_Sd(style="thin", color="D1D5DB"),
-                    bottom=_Sd(style="thin", color="D1D5DB"),
+                hdr_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
+                hdr_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+                hdr_align = Alignment(horizontal="center", vertical="center")
+                thin_border = Border(
+                    left=Side(style="thin", color="D1D5DB"),
+                    right=Side(style="thin", color="D1D5DB"),
+                    top=Side(style="thin", color="D1D5DB"),
+                    bottom=Side(style="thin", color="D1D5DB"),
                 )
 
                 for col, header in [(1, "#"), (2, "DMC / Serial Number"), (3, "Value")]:
@@ -3391,21 +3386,15 @@ with tab_data:
                     c.alignment = hdr_align
                     c.border = thin_border
 
-                # Sample data (10 rows)
                 sample = [
-                    ("DMC-2024-001", 10.005),
-                    ("DMC-2024-002", 9.998),
-                    ("DMC-2024-003", 10.012),
-                    ("DMC-2024-004", 9.985),
-                    ("DMC-2024-005", 10.008),
-                    ("DMC-2024-006", 9.992),
-                    ("DMC-2024-007", 10.015),
-                    ("DMC-2024-008", 10.001),
-                    ("DMC-2024-009", 9.990),
-                    ("DMC-2024-010", 10.010),
+                    ("DMC-2024-001", 10.005), ("DMC-2024-002", 9.998),
+                    ("DMC-2024-003", 10.012), ("DMC-2024-004", 9.985),
+                    ("DMC-2024-005", 10.008), ("DMC-2024-006", 9.992),
+                    ("DMC-2024-007", 10.015), ("DMC-2024-008", 10.001),
+                    ("DMC-2024-009", 9.990), ("DMC-2024-010", 10.010),
                 ]
-                input_fill = _Pf(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
-                alt_fill = _Pf(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+                input_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+                alt_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
                 for i, (dmc, val) in enumerate(sample, start=1):
                     r = i + 1
                     ws.cell(row=r, column=1, value=i).border = thin_border
@@ -3417,7 +3406,6 @@ with tab_data:
                     ws.cell(row=r, column=2).fill = fill
                     ws.cell(row=r, column=3).fill = fill
 
-                # Empty rows for user to fill (up to 100 shown)
                 for i in range(len(sample) + 1, 101):
                     r = i + 1
                     ws.cell(row=r, column=1, value=i).border = thin_border
@@ -3429,13 +3417,12 @@ with tab_data:
                     ws.cell(row=r, column=2).fill = fill
                     ws.cell(row=r, column=3).fill = fill
 
-                # Instructions row
-                ws.cell(row=103, column=2, value="💡 Replace sample data with your actual measurements.").font = _Ft(
+                ws.cell(row=103, column=2, value="💡 Replace sample data with your actual measurements.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
-                ws.cell(row=104, column=2, value="📤 Upload this file back using the file uploader in the Streamlit app.").font = _Ft(
+                ws.cell(row=104, column=2, value="📤 Upload this file back using the file uploader in the Streamlit app.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
 
-                buf = _io.BytesIO()
+                buf = io.BytesIO()
                 wb.save(buf)
                 buf.seek(0)
                 return buf.getvalue()

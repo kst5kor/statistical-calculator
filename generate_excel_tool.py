@@ -12,15 +12,12 @@ Mirrors the original Streamlit application with:
 """
 from openpyxl import Workbook
 from openpyxl.styles import (
-    Font, Alignment, Border, Side, PatternFill, numbers
+    Font, Alignment, Border, Side, PatternFill
 )
-from openpyxl.chart import BarChart, LineChart, Reference, BarChart3D
-from openpyxl.chart.series import DataPoint
-from openpyxl.chart.label import DataLabelList
+from openpyxl.chart import BarChart, LineChart, Reference
 from openpyxl.utils import get_column_letter
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.worksheet.datavalidation import DataValidation
-import math
 
 OUTPUT_FILE = "SPC_Statistical_Calculator.xlsx"
 MAX_DATA_ROWS = 1000
@@ -404,7 +401,7 @@ def create_analysis_sheet(wb):
 
     # Conditional formatting: highlight mode-disabled manual input cells
     ws.conditional_formatting.add("C12:C14",
-        FormulaRule(formula=[f'$C$10="Use Data Worksheet"'],
+        FormulaRule(formula=['$C$10="Use Data Worksheet"'],
                     fill=PatternFill(start_color="E5E7EB", end_color="E5E7EB", fill_type="solid"),
                     font=Font(color="9CA3AF")))
 
@@ -495,7 +492,7 @@ def create_data_sheet(wb):
         ("Std Dev (σ)",     f'=IF(G5>=2,STDEV.S({data_range}),"")',                            "0.00000"),
         ("Min",             f'=IF(G5>=1,MIN({data_range}),"")',                                "0.000"),
         ("Max",             f'=IF(G5>=1,MAX({data_range}),"")',                                "0.000"),
-        ("Range",           f'=IF(G5>=2,G9-G8,"")',                                            "0.000"),
+        ("Range",           '=IF(G5>=2,G9-G8,"")',                                            "0.000"),
         ("Median",          f'=IF(G5>=1,MEDIAN({data_range}),"")',                             "0.000"),
         ("Q1 (25th %ile)",  f'=IF(G5>=4,PERCENTILE({data_range},0.25),"")',                   "0.000"),
         ("Q3 (75th %ile)",  f'=IF(G5>=4,PERCENTILE({data_range},0.75),"")',                   "0.000"),
@@ -518,10 +515,10 @@ def create_data_sheet(wb):
     preview_row = status_row + 2
     section_row(ws, preview_row, 6, 7, "QUICK PREVIEW (from worksheet data)")
     lv(ws, preview_row + 1, 6, "Cp (preview)", 7,
-       formula=f'=IF(G7=""," — ", IF(G7=0,"∞",(Analysis!C8-Analysis!C7)/(6*G7)))', fmt="0.000")
+       formula='=IF(G7=""," — ", IF(G7=0,"∞",(Analysis!C8-Analysis!C7)/(6*G7)))', fmt="0.000")
     add_cpk_cond_fmt(ws, f"G{preview_row+1}")
     lv(ws, preview_row + 2, 6, "Cpk (preview)", 7,
-       formula=f'=IF(G7=""," — ", IF(G7=0,"∞",MIN((Analysis!C8-G6)/(3*G7),(G6-Analysis!C7)/(3*G7))))', fmt="0.000")
+       formula='=IF(G7=""," — ", IF(G7=0,"∞",MIN((Analysis!C8-G6)/(3*G7),(G6-Analysis!C7)/(3*G7))))', fmt="0.000")
     add_cpk_cond_fmt(ws, f"G{preview_row+2}")
 
     # Sample data note
@@ -959,16 +956,16 @@ def main():
 
     wb.save(OUTPUT_FILE)
     print(f"✅ Excel tool generated: {OUTPUT_FILE}")
-    print(f"   Sheets: Analysis | Data | Charts | History | Reference")
-    print(f"   Features:")
-    print(f"     - Mode toggle: Enter Manually / Use Data Worksheet (dropdown)")
-    print(f"     - Auto-linked x̄, σ, n from Data sheet")
-    print(f"     - Full assessment: Centering, Capability, Robustness, Tolerance, Hypothesis")
-    print(f"     - Overall verdict with conditional color formatting")
-    print(f"     - Recommendations formula")
-    print(f"     - Bell curve (current + centered) chart")
-    print(f"     - Capability bar chart (Cp/Cpk vs Target)")
-    print(f"     - History log with pre-linked first row")
+    print("   Sheets: Analysis | Data | Charts | History | Reference")
+    print("   Features:")
+    print("     - Mode toggle: Enter Manually / Use Data Worksheet (dropdown)")
+    print("     - Auto-linked x̄, σ, n from Data sheet")
+    print("     - Full assessment: Centering, Capability, Robustness, Tolerance, Hypothesis")
+    print("     - Overall verdict with conditional color formatting")
+    print("     - Recommendations formula")
+    print("     - Bell curve (current + centered) chart")
+    print("     - Capability bar chart (Cp/Cpk vs Target)")
+    print("     - History log with pre-linked first row")
     print(f"     - {MAX_DATA_ROWS} data entry rows in worksheet")
 
 
