@@ -23,7 +23,7 @@ from openpyxl.worksheet.datavalidation import DataValidation
 import math
 
 OUTPUT_FILE = "SPC_Statistical_Calculator.xlsx"
-MAX_DATA_ROWS = 100
+MAX_DATA_ROWS = 1000
 
 # ===========================================================================
 # Color palette
