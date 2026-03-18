@@ -604,9 +604,33 @@ def create_charts_sheet(wb):
 
     # ======================== RIGHT SIDE: Control Charts ========================
 
+    # --- Filter control ---
+    # Cell H2: label, I2: dropdown for number of points to display
+    ws.cell(row=2, column=8, value="Show Points:").font = Font(
+        name="Calibri", size=10, bold=True, color=DARK_BLUE)
+    ws.cell(row=2, column=8).alignment = Alignment(horizontal="right", vertical="center")
+    ws.cell(row=2, column=9, value=50)
+    ws.cell(row=2, column=9).font = Font(name="Calibri", size=12, bold=True, color=ORANGE)
+    ws.cell(row=2, column=9).alignment = CENTER
+    ws.cell(row=2, column=9).fill = INPUT_FILL
+    ws.cell(row=2, column=9).border = THIN_BORDER
+    filter_dv = DataValidation(type="list", formula1='"10,25,50,100,All"',
+                                allow_blank=False, showDropDown=False)
+    filter_dv.prompt = "Choose how many data points to show in control charts"
+    filter_dv.promptTitle = "Filter"
+    ws.add_data_validation(filter_dv)
+    filter_dv.add(ws["I2"])
+
+    # Helper cell: effective N (convert "All" to 1000)
+    ws.cell(row=2, column=10,
+            value=f'=IF(I2="All",{MAX_DATA_ROWS},I2)').font = Font(color=WHITE, size=1)
+    ws.cell(row=2, column=10).number_format = ";;;"  # Hidden
+
+    FILTER_CELL = "$J$2"  # Effective N
+
     # --- I-MR (Individual & Moving Range) Control Chart Data ---
     ctrl_start = 3
-    section_row(ws, ctrl_start, 8, 13, "I-MR Control Chart Data (from Data Worksheet)")
+    section_row(ws, ctrl_start, 8, 13, "I-MR Control Chart Data (filtered by Show Points)")
     header_row(ws, ctrl_start + 1, 8, ["#", "Value", "MR", "x̄ (CL)", "UCL", "LCL"])
 
     # I-MR constants: for individual values, d2=1.128, D4=3.267, D3=0
@@ -616,7 +640,7 @@ def create_charts_sheet(wb):
     n_ref = "Data!G5"     # Count
     mean_ref = "Data!G6"  # Mean
 
-    CTRL_ROWS = 50  # Show up to 50 points in control chart
+    CTRL_ROWS = 100  # Show up to 100 points in control chart
     for i in range(1, CTRL_ROWS + 1):
         r = ctrl_start + 1 + i
         data_row = 4 + i  # Row in Data sheet
@@ -626,27 +650,28 @@ def create_charts_sheet(wb):
         ws.cell(row=r, column=8).border = THIN_BORDER
         # Individual Value (linked from Data sheet)
         ws.cell(row=r, column=9,
-                value=f'=IF({data_ref}{data_row}="""",NA(),{data_ref}{data_row})').number_format = "0.000"
+                value=f'=IF(OR({i}>{FILTER_CELL},{data_ref}{data_row}=""),NA(),{data_ref}{data_row})').number_format = "0.000"
         ws.cell(row=r, column=9).border = THIN_BORDER
         # Moving Range: |Xi - Xi-1|
         if i == 1:
-            ws.cell(row=r, column=10, value='=NA()').number_format = "0.000"
+            ws.cell(row=r, column=10,
+                    value=f'=IF({i}>{FILTER_CELL},NA(),NA())').number_format = "0.000"
         else:
             prev_data_row = data_row - 1
             ws.cell(row=r, column=10,
-                    value=f'=IF(OR({data_ref}{data_row}="""",{data_ref}{prev_data_row}=""""),NA(),ABS({data_ref}{data_row}-{data_ref}{prev_data_row}))').number_format = "0.000"
+                    value=f'=IF(OR({i}>{FILTER_CELL},{data_ref}{data_row}="",{data_ref}{prev_data_row}=""),NA(),ABS({data_ref}{data_row}-{data_ref}{prev_data_row}))').number_format = "0.000"
         ws.cell(row=r, column=10).border = THIN_BORDER
         # Center Line (Mean)
         ws.cell(row=r, column=11,
-                value=f'=IF({n_ref}>=2,{mean_ref},NA())').number_format = "0.000"
+                value=f'=IF(OR({i}>{FILTER_CELL},{n_ref}<2),NA(),{mean_ref})').number_format = "0.000"
         ws.cell(row=r, column=11).border = THIN_BORDER
         # UCL = x̄ + 2.66 * MR̄ (where MR̄ = average of MR column)
         ws.cell(row=r, column=12,
-                value=f'=IF({n_ref}>=2,{mean_ref}+2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}),NA())').number_format = "0.000"
+                value=f'=IF(OR({i}>{FILTER_CELL},{n_ref}<2),NA(),{mean_ref}+2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}))').number_format = "0.000"
         ws.cell(row=r, column=12).border = THIN_BORDER
         # LCL = x̄ - 2.66 * MR̄
         ws.cell(row=r, column=13,
-                value=f'=IF({n_ref}>=2,{mean_ref}-2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}),NA())').number_format = "0.000"
+                value=f'=IF(OR({i}>{FILTER_CELL},{n_ref}<2),NA(),{mean_ref}-2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}))').number_format = "0.000"
         ws.cell(row=r, column=13).border = THIN_BORDER
 
     ctrl_last_row = ctrl_start + 1 + CTRL_ROWS
