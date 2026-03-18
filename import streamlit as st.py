@@ -3455,7 +3455,7 @@ with tab_data:
             if st.button("Sample Data", use_container_width=True):
                 # Generate sample normal data
                 sample_rng = np.random.default_rng(42)
-                sample_data = sample_rng.normal(10.0, 0.02, 50).round(4)
+                sample_data = sample_rng.normal(10.0, 0.02, 1000).round(4)
                 st.session_state.last_uploaded_signature = None
                 set_worksheet_data(sample_data)
                 st.rerun()
