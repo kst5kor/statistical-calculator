@@ -550,56 +550,70 @@ class PlotManager:
             if valid_y:
                 max_pdf_y = max(valid_y) * 1.1
 
+        # Theme-adaptive font color (readable in both light and dark mode)
+        _fc = "#8b95a5"
         layout_defaults = {
             "xaxis": {
-                "title": "Value",
+                "title": {"text": "Measurement Value", "font": {"color": _fc, "size": 11}},
                 "range": [x_min, x_max],
-                "tickfont": {"size": 9},
-                "showspikes": True,  # Crosshair
+                "zeroline": False,
+                "tickformat": f".{dp}f",
+                "tickfont": {"size": 10, "color": _fc},
+                "gridcolor": "rgba(128,128,128,0.15)",
+                "linecolor": "rgba(128,128,128,0.25)",
+                "showspikes": True,
                 "spikemode": "across",
                 "spikesnap": "cursor",
-                "spikecolor": "#666",
-                "spikethickness": 1,
+                "spikecolor": "#888",
+                "spikethickness": 0.5,
                 "spikedash": "dot",
             },
             "yaxis": {
-                "title": "Density" if s > 0 else "",
+                "title": {"text": "Density" if s > 0 else "", "font": {"color": _fc, "size": 11}},
                 "tickformat": ".2f" if s > 0 else "",
-                "fixedrange": False,  # Enable vertical zoom
+                "fixedrange": False,
                 "range": [0, max_pdf_y],
-                "tickfont": {"size": 9},
+                "tickfont": {"size": 10, "color": _fc},
                 "showticklabels": bool(s > 0),
-                "showspikes": True,  # Crosshair
+                "gridcolor": "rgba(128,128,128,0.15)",
+                "linecolor": "rgba(128,128,128,0.25)",
+                "showspikes": True,
                 "spikemode": "across",
                 "spikesnap": "cursor",
-                "spikecolor": "#666",
-                "spikethickness": 1,
+                "spikecolor": "#888",
+                "spikethickness": 0.5,
                 "spikedash": "dot",
             },
+            "height": 380,
+            "margin": {"t": 55, "b": 65, "l": 55, "r": 25},
+            "showlegend": True,
             "legend": {
-                "font": {"size": 9},
-                "x": 0.98,
-                "xanchor": "right",
-                "y": 0.98,
-                "yanchor": "top",
-                "bgcolor": "rgba(128,128,128,0.15)",
-                "bordercolor": "#ddd",
+                "orientation": "h",
+                "y": -0.22,
+                "x": 0.5,
+                "xanchor": "center",
+                "bgcolor": "rgba(128,128,128,0.08)",
+                "bordercolor": "rgba(128,128,128,0.2)",
                 "borderwidth": 1,
+                "font": {"size": 10, "color": _fc},
             },
-            "margin": {"t": 50, "b": 50, "l": 50, "r": 20},
             "hovermode": "x unified",
             "hoverlabel": {
-                "font_size": 12,
-                "font_family": "sans-serif",
-                "bordercolor": "#444",
+                "font_size": 11,
+                "namelength": -1,
+                "bgcolor": "rgba(30,41,59,0.92)",
+                "font_color": "#e2e8f0",
+                "bordercolor": "rgba(128,128,128,0.3)",
             },
-            "dragmode": "zoom",  # Default to zoom mode
+            "dragmode": "zoom",
             "modebar": {
                 "orientation": "v",
-                "bgcolor": "rgba(128,128,128,0.15)",
+                "bgcolor": "rgba(0,0,0,0)",
+                "color": _fc,
             },
             "paper_bgcolor": "rgba(0,0,0,0)",
             "plot_bgcolor": "rgba(0,0,0,0)",
+            "font": {"color": _fc},
         }
         # Note: PLOT_CONFIG is now defined at class level
 
@@ -918,13 +932,49 @@ class PlotManager:
             ]
 
             fig_hist.update_layout(
-                title="Data Frequency Distribution",
-                xaxis={"title": "Value", "range": [x_min, x_max], "zeroline": False},
-                yaxis={"title": "Frequency (Count)", "fixedrange": True},
+                title={"text": "3. Data Frequency Distribution", "font": {"size": 12, "color": _fc}},
+                xaxis={
+                    "title": {"text": "Value", "font": {"color": _fc, "size": 11}},
+                    "range": [x_min, x_max],
+                    "zeroline": False,
+                    "tickfont": {"size": 10, "color": _fc},
+                    "gridcolor": "rgba(128,128,128,0.15)",
+                    "linecolor": "rgba(128,128,128,0.25)",
+                },
+                yaxis={
+                    "title": {"text": "Frequency (Count)", "font": {"color": _fc, "size": 11}},
+                    "fixedrange": True,
+                    "tickfont": {"size": 10, "color": _fc},
+                    "gridcolor": "rgba(128,128,128,0.15)",
+                    "linecolor": "rgba(128,128,128,0.25)",
+                },
+                height=380,
                 bargap=0.05,
                 shapes=shapes_hist,
                 annotations=annotations_hist,
-                margin={"t": 50, "b": 50, "l": 50, "r": 20},
+                margin={"t": 55, "b": 65, "l": 55, "r": 25},
+                showlegend=True,
+                legend={
+                    "orientation": "h",
+                    "y": -0.22,
+                    "x": 0.5,
+                    "xanchor": "center",
+                    "bgcolor": "rgba(128,128,128,0.08)",
+                    "bordercolor": "rgba(128,128,128,0.2)",
+                    "borderwidth": 1,
+                    "font": {"size": 10, "color": _fc},
+                },
+                hovermode="x unified",
+                hoverlabel={
+                    "font_size": 11,
+                    "namelength": -1,
+                    "bgcolor": "rgba(30,41,59,0.92)",
+                    "font_color": "#e2e8f0",
+                    "bordercolor": "rgba(128,128,128,0.3)",
+                },
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font={"color": _fc},
             )
 
         return fig_before, fig_after, fig_hist
@@ -2803,7 +2853,9 @@ def init_session_state(clear_form=False):
 
 init_session_state()
 simplify_to_single_characteristic()
-sync_global_from_characteristic(st.session_state.active_characteristic_name)
+# NOTE: Do NOT call sync_global_from_characteristic here.
+# simplify_to_single_characteristic already calls it internally,
+# and calling it again would overwrite widget-driven state (e.g. 'mode' radio).
 
 # --- Main App UI ---
 st.title("Statistical Process Capability & Optimization Tool")
@@ -2888,14 +2940,24 @@ with tab_analysis:
                         help="A measure of the amount of variation or dispersion of a set of values.",
                     )
             else:
-                active_count = len(
-                    coerce_valid_numeric_values(
-                        st.session_state.worksheet_data["Value"].dropna().tolist()
+                # Safely handle worksheet data that may not be initialized yet
+                _ws_data = st.session_state.get("worksheet_data")
+                if isinstance(_ws_data, pd.DataFrame) and "Value" in _ws_data.columns:
+                    active_count = len(
+                        coerce_valid_numeric_values(
+                            _ws_data["Value"].dropna().tolist()
+                        )
                     )
-                )
-                st.caption(
-                    f"Worksheet mode will analyze `{active_characteristic}` using {active_count} valid data point(s)."
-                )
+                else:
+                    active_count = 0
+                if active_count > 0:
+                    st.success(
+                        f"📊 Worksheet mode: **{active_count}** valid data points for `{active_characteristic}`."
+                    )
+                else:
+                    st.warning(
+                        f"⚠️ No valid data in worksheet for `{active_characteristic}`. Go to the **Data Worksheet** tab to enter values."
+                    )
 
             st.number_input(
                 "Target Index",
