@@ -3694,11 +3694,20 @@ with tab_viz:
             x_bar = float(np.mean(data_points))
             s = float(np.std(data_points, ddof=1)) if n >= 2 else 0.0
 
+            # ±1σ zone lines
+            plus_1s = x_bar + 1 * s
+            minus_1s = x_bar - 1 * s
+
             # I-MR constants
             ucl = x_bar + 3 * s
             lcl = x_bar - 3 * s
             uwl = x_bar + 2 * s
             lwl = x_bar - 2 * s
+
+            # Specification lines from session state
+            _lsl = float(st.session_state.get("lsl", 0))
+            _usl = float(st.session_state.get("usl", 0))
+            _tm = float(st.session_state.get("tm", 0))
 
             # Moving Range
             mr_values = [abs(data_points[i] - data_points[i - 1]) for i in range(1, n)]
@@ -3720,41 +3729,86 @@ with tab_viz:
                 )
             )
 
+            # Center line
             fig_control.add_trace(
                 go.Scatter(
                     x=[1, n], y=[x_bar, x_bar],
-                    mode="lines", name=f"CL (x̄={x_bar:.4f})",
+                    mode="lines", name=f"CL x̄ = {x_bar:.4f}",
                     line=dict(color="#10B981", width=2, dash="solid"),
                 )
             )
+            # UCL / LCL (±3σ)
             fig_control.add_trace(
                 go.Scatter(
                     x=[1, n], y=[ucl, ucl],
-                    mode="lines", name=f"UCL ({ucl:.4f})",
+                    mode="lines", name=f"UCL x̄+3σ = {ucl:.4f}",
                     line=dict(color="#EF4444", width=1.5, dash="dash"),
                 )
             )
             fig_control.add_trace(
                 go.Scatter(
                     x=[1, n], y=[lcl, lcl],
-                    mode="lines", name=f"LCL ({lcl:.4f})",
+                    mode="lines", name=f"LCL x̄−3σ = {lcl:.4f}",
                     line=dict(color="#EF4444", width=1.5, dash="dash"),
                 )
             )
 
+            # ±2σ Warning limits
             if show_warnings:
                 fig_control.add_trace(
                     go.Scatter(
                         x=[1, n], y=[uwl, uwl],
-                        mode="lines", name=f"UWL ({uwl:.4f})",
+                        mode="lines", name=f"+2σ = {uwl:.4f}",
                         line=dict(color="#F59E0B", width=1, dash="dot"),
                     )
                 )
                 fig_control.add_trace(
                     go.Scatter(
                         x=[1, n], y=[lwl, lwl],
-                        mode="lines", name=f"LWL ({lwl:.4f})",
+                        mode="lines", name=f"−2σ = {lwl:.4f}",
                         line=dict(color="#F59E0B", width=1, dash="dot"),
+                    )
+                )
+
+            # ±1σ zone lines
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n], y=[plus_1s, plus_1s],
+                    mode="lines", name=f"+1σ = {plus_1s:.4f}",
+                    line=dict(color="#A78BFA", width=1, dash="dot"),
+                    visible="legendonly",
+                )
+            )
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n], y=[minus_1s, minus_1s],
+                    mode="lines", name=f"−1σ = {minus_1s:.4f}",
+                    line=dict(color="#A78BFA", width=1, dash="dot"),
+                    visible="legendonly",
+                )
+            )
+
+            # Specification lines (LSL / USL / Target)
+            if _usl > _lsl:
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[1, n], y=[_usl, _usl],
+                        mode="lines", name=f"USL = {_usl:.3f}",
+                        line=dict(color="#059669", width=2, dash="dashdot"),
+                    )
+                )
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[1, n], y=[_lsl, _lsl],
+                        mode="lines", name=f"LSL = {_lsl:.3f}",
+                        line=dict(color="#059669", width=2, dash="dashdot"),
+                    )
+                )
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[1, n], y=[_tm, _tm],
+                        mode="lines", name=f"Target = {_tm:.3f}",
+                        line=dict(color="#8B5CF6", width=1.5, dash="longdash"),
                     )
                 )
 
@@ -3771,9 +3825,37 @@ with tab_viz:
                 )
 
             _fc = "#8b95a5"
+
+            # Right-side zone annotations
+            zone_annotations = [
+                dict(x=1.02, y=ucl, xref="paper", yref="y", text="UCL (x̄+3σ)", showarrow=False,
+                     font=dict(size=9, color="#EF4444"), xanchor="left"),
+                dict(x=1.02, y=lcl, xref="paper", yref="y", text="LCL (x̄−3σ)", showarrow=False,
+                     font=dict(size=9, color="#EF4444"), xanchor="left"),
+                dict(x=1.02, y=x_bar, xref="paper", yref="y", text="CL (x̄)", showarrow=False,
+                     font=dict(size=9, color="#10B981", bold=True), xanchor="left"),
+            ]
+            if show_warnings:
+                zone_annotations.extend([
+                    dict(x=1.02, y=uwl, xref="paper", yref="y", text="Zone B (+2σ)", showarrow=False,
+                         font=dict(size=8, color="#F59E0B"), xanchor="left"),
+                    dict(x=1.02, y=lwl, xref="paper", yref="y", text="Zone B (−2σ)", showarrow=False,
+                         font=dict(size=8, color="#F59E0B"), xanchor="left"),
+                ])
+            # Zone labels in the middle of chart
+            if s > 0:
+                zone_annotations.extend([
+                    dict(x=0.98, y=(x_bar + plus_1s) / 2, xref="paper", yref="y", text="Zone C",
+                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                    dict(x=0.98, y=(plus_1s + uwl) / 2, xref="paper", yref="y", text="Zone B",
+                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                    dict(x=0.98, y=(uwl + ucl) / 2, xref="paper", yref="y", text="Zone A",
+                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                ])
+
             _ctrl_layout = dict(
-                height=380,
-                margin=dict(t=55, b=65, l=55, r=25),
+                height=420,
+                margin=dict(t=55, b=65, l=55, r=70),
                 hovermode="x unified",
                 xaxis=dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
                            tickfont=dict(size=10, color=_fc),
@@ -3782,7 +3864,7 @@ with tab_viz:
                            tickfont=dict(size=10, color=_fc),
                            gridcolor="rgba(128,128,128,0.15)"),
                 legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
-                            bgcolor="rgba(128,128,128,0.08)", font=dict(size=10, color=_fc)),
+                            bgcolor="rgba(128,128,128,0.08)", font=dict(size=9, color=_fc)),
                 hoverlabel=dict(font_size=11, bgcolor="rgba(30,41,59,0.92)",
                                 font_color="#e2e8f0", bordercolor="rgba(128,128,128,0.3)"),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
@@ -3791,6 +3873,7 @@ with tab_viz:
 
             fig_control.update_layout(
                 title=dict(text=f"I-Chart — Individual Values ({n} points)", font=dict(size=12, color=_fc)),
+                annotations=zone_annotations,
                 **_ctrl_layout,
             )
 
@@ -3804,6 +3887,79 @@ with tab_viz:
                 )
             else:
                 st.success("✅ All points within control limits — process is in statistical control")
+
+            # ====== STATISTICS SUMMARY PANEL ======
+            st.markdown("---")
+            st.subheader("📋 Control Chart Statistics Summary")
+
+            # Calculate additional metrics
+            _cp = ((_usl - _lsl) / (6 * s)) if s > 0 and _usl > _lsl else float("inf")
+            _cpk = min((_usl - x_bar) / (3 * s), (x_bar - _lsl) / (3 * s)) if s > 0 and _usl > _lsl else float("inf")
+            _ppm_above = sum(1 for v in data_points if v > _usl)
+            _ppm_below = sum(1 for v in data_points if v < _lsl)
+            _zone_a = sum(1 for v in data_points if v > uwl or v < lwl)  # between 2σ-3σ
+            _zone_b = sum(1 for v in data_points if (uwl >= v > plus_1s) or (lwl <= v < minus_1s))
+            _zone_c = sum(1 for v in data_points if minus_1s <= v <= plus_1s)
+            _sigma_level = abs(x_bar - _tm) / s if s > 0 else 0.0
+
+            stat_cols = st.columns(4)
+            with stat_cols[0]:
+                st.markdown("**📊 Central Tendency**")
+                st.markdown(f"""
+| Metric | Value |
+|--------|-------|
+| x̄ (Mean) | `{x_bar:.5f}` |
+| Target (Tₘ) | `{_tm:.3f}` |
+| Shift (Δ) | `{x_bar - _tm:.5f}` |
+| σ | `{s:.5f}` |
+| n | `{n}` |
+""")
+
+            with stat_cols[1]:
+                st.markdown("**📏 Control Limits**")
+                st.markdown(f"""
+| Limit | Value |
+|-------|-------|
+| UCL (x̄+3σ) | `{ucl:.5f}` |
+| +2σ | `{uwl:.5f}` |
+| +1σ | `{plus_1s:.5f}` |
+| CL (x̄) | `{x_bar:.5f}` |
+| −1σ | `{minus_1s:.5f}` |
+| −2σ | `{lwl:.5f}` |
+| LCL (x̄−3σ) | `{lcl:.5f}` |
+""")
+
+            with stat_cols[2]:
+                st.markdown("**🎯 Capability**")
+                cp_display = f"{_cp:.3f}" if _cp < 999 else "∞"
+                cpk_display = f"{_cpk:.3f}" if _cpk < 999 else "∞"
+                st.markdown(f"""
+| Metric | Value |
+|--------|-------|
+| Cp | `{cp_display}` |
+| Cpk | `{cpk_display}` |
+| 6σ Spread | `{6*s:.5f}` |
+| 8σ Spread | `{8*s:.5f}` |
+| LSL | `{_lsl:.3f}` |
+| USL | `{_usl:.3f}` |
+| Tolerance | `{_usl - _lsl:.3f}` |
+""")
+
+            with stat_cols[3]:
+                st.markdown("**🔍 Zone Analysis**")
+                st.markdown(f"""
+| Zone | Count | % |
+|------|-------|---|
+| Zone A (±2-3σ) | `{_zone_a}` | `{_zone_a/n*100:.1f}%` |
+| Zone B (±1-2σ) | `{_zone_b}` | `{_zone_b/n*100:.1f}%` |
+| Zone C (±1σ) | `{_zone_c}` | `{_zone_c/n*100:.1f}%` |
+| OOC (>3σ) | `{len(ooc_indices)}` | `{len(ooc_indices)/n*100:.1f}%` |
+| > USL | `{_ppm_above}` | `{_ppm_above/n*100:.2f}%` |
+| < LSL | `{_ppm_below}` | `{_ppm_below/n*100:.2f}%` |
+| MR̄ | `{mr_bar:.5f}` | — |
+""")
+
+            st.markdown("---")
 
             # ====== MR-CHART ======
             fig_mr = go.Figure()
@@ -3846,8 +4002,17 @@ with tab_viz:
                     )
                 )
 
+            # MR annotations
+            mr_annotations = [
+                dict(x=1.02, y=mr_ucl, xref="paper", yref="y", text="MR UCL", showarrow=False,
+                     font=dict(size=9, color="#EF4444"), xanchor="left"),
+                dict(x=1.02, y=mr_bar, xref="paper", yref="y", text="MR̄", showarrow=False,
+                     font=dict(size=9, color="#10B981"), xanchor="left"),
+            ]
+
             fig_mr.update_layout(
                 title=dict(text=f"MR-Chart — Moving Range ({n-1} ranges)", font=dict(size=12, color=_fc)),
+                annotations=mr_annotations,
                 **{**_ctrl_layout,
                    "xaxis": dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
                                  tickfont=dict(size=10, color=_fc),
