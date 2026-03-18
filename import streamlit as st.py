@@ -2064,116 +2064,96 @@ class Chatbot:
         )
 
     def _prepare_reference_content(self):
-        # This data is manually extracted from the 'tab-content-reference' HTML
         raw_sections = [
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "This tool is primarily utilized in Six Sigma and Statistical Process Control (SPC) environments for Process Centering and Tolerance Verification.",
-            },
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "Quantify Process Drift: Calculate the exact Required Shift (Δ) needed to move the measured process mean (x̄) back to the engineering target (Tm). This quantifies the resultant dimensional change or process deformation that has occurred (e.g., due to tool wear or assembly stress).",
-            },
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "Predict Initial State: By using the current measured output (x̄) and the required shift (Δ), one can infer the required initial dimension/setting to achieve the target (Tm) after the process variables have exerted their influence.",
-            },
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "Verify Tolerance Adequacy: Determine the minimum Required Tolerance (USL - LSL) necessary for the existing process variation (σ) to meet a desired capability index (Cpk, Ppk).",
-            },
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "Use the Data Worksheet for part-by-part entry with DMC or serial number in one column and the measured value in the other column.",
-            },
-            {
-                "context": "Application Context & Usage Guide",
-                "text": "Use the Visualization tab to review the worksheet distribution histogram, box plot, capability curves, and control chart after analysis.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "For dimensional automotive manufacturing, Cp and Cpk are the core capability formulas used to compare process spread and centering against drawing tolerance.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Cp = (USL - LSL) / 6σ measures potential capability if the process is perfectly centered.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Cpk = min[(USL - x̄) / 3σ, (x̄ - LSL) / 3σ] measures actual capability with centering included.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Required Shift (Δ) = Tm - x̄ shows how far the process mean must move to reach target.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Required Tolerance = Target Capability × 6σ estimates the minimum tolerance band needed for the current process variation.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Capability indices quantify how well the natural process variation fits within the required specification limits. The choice of index depends on the time horizon of the data collected.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Cp/Cpk/Cmk (Short-Term Capability): These indices use within-subgroup variation, typically reflecting the immediate, inherent capability of the process over a short period, free from common causes of variation.",
-            },
-            {
-                "context": "Concepts Overview: Six Sigma & Capability Indices",
-                "text": "Pp/Ppk (Long-Term Performance): These indices use overall process variation, including all potential sources of variation over an extended period. Ppk is always less than or equal to Cpk.",
-            },
-            {
-                "context": "Choosing a Distribution",
-                "text": "This tool uses a normal dimensional-process assumption, which is the standard starting point for machined, ground, stamped, or molded automotive part characteristics once the process is stable.",
-            },
-            {
-                "context": "Additional Metric Definitions",
-                "text": "x̄ ± 4σ Spread: This range contains approximately 99.9937% of the process output, providing a more conservative view of the process spread compared to the 6σ range (99.73%).",
-            },
-            {
-                "context": "Additional Metric Definitions",
-                "text": "P(x < LSL) & P(x > USL): These values represent the calculated probability that a single part will fall outside the lower (LSL) or upper (USL) specification limits. They are the direct drivers of the PPM defect rate.",
-            },
-            {
-                "context": "Additional Metric Definitions",
-                "text": "P(x < Tm): This is the probability that a single measurement will fall below the Target Mean (Tm). It helps assess process bias. In a perfectly centered process, this value would be exactly 50%.",
-            },
-            {
-                "context": "Additional Metric Definitions",
-                "text": "PPM (Parts Per Million): PPM is a measure of the defect rate, calculated from the probabilities. For example, a P(x > USL) of 0.001% is equivalent to 10 PPM.",
-            },
-            {
-                "context": "Hypothesis Testing & Confidence Level",
-                "text": "This tool performs a Z-test to determine if the true process mean (μ) is statistically different from the engineering Target Mean (Tm), based on your sample data.",
-            },
-            {
-                "context": "Hypothesis Testing & Confidence Level",
-                "text": "Null Hypothesis (H₀): μ = Tm. This assumes the true process mean is exactly on target.",
-            },
-            {
-                "context": "Hypothesis Testing & Confidence Level",
-                "text": "p-value: The probability of observing your sample results if the null hypothesis were true. A small p-value (typically < 0.05) provides evidence against H₀.",
-            },
-            {
-                "context": "Hypothesis Testing & Confidence Level",
-                "text": "Result: Fail to Reject H₀. The p-value is high. There is no statistically significant evidence that the process mean is different from the target. The observed off-center condition could be due to random chance.",
-            },
-            {
-                "context": "Hypothesis Testing & Confidence Level",
-                "text": "Result: Reject H₀. The p-value is low. There is statistically significant evidence that the process mean has shifted away from the target. The 'Required Shift (Δ)' is likely a real effect.",
-            },
-            {
-                "context": "When to Use Each Hypothesis Type",
-                "text": "Two-Sided (Default): Use when deviations in both directions from the target are of concern. Example: A part's diameter must be exactly Tm.",
-            },
-            {
-                "context": "When to Use Each Hypothesis Type",
-                "text": "Upper-Sided: Use when it is critical to assess if the mean is significantly above the target. Example: The level of a contaminant must not exceed Tm.",
-            },
-            {
-                "context": "When to Use Each Hypothesis Type",
-                "text": "Lower-Sided: Use when it is critical to assess if the mean is significantly below the target. Example: Breaking strength must be at least Tm.",
-            },
+            # --- Application Context ---
+            {"context": "Application Context", "text": "This tool is used in Six Sigma and SPC environments for Process Centering and Tolerance Verification. It helps engineers quantify process drift, predict initial settings, and verify tolerance adequacy."},
+            {"context": "Application Context", "text": "Quantify Process Drift: Calculate the exact Required Shift (Δ) = Tₘ − x̄ to move the measured process mean back to the engineering target."},
+            {"context": "Application Context", "text": "Predict Initial State: Infer the required initial dimension/setting to achieve the target (Tₘ) after process variables exert their influence."},
+            {"context": "Application Context", "text": "Verify Tolerance Adequacy: Determine the minimum Required Tolerance (USL − LSL) for the existing process variation (σ) to meet a desired Cpk/Ppk."},
+
+            # --- Step-by-Step Workflow ---
+            {"context": "How to Use This Tool", "text": "Step 1: Go to 'Data Worksheet' tab. Enter measurement label, description, Tₘ (Target Mean), LSL (Lower Spec Limit), and USL (Upper Spec Limit)."},
+            {"context": "How to Use This Tool", "text": "Step 2: Enter data — type DMC/serial + measured values directly in the worksheet grid, or upload a CSV/Excel file, or click 'Sample Data' for 1000 test points."},
+            {"context": "How to Use This Tool", "text": "Step 3: Go to 'Analysis & Report' tab. Select 'Use Data Worksheet' mode, then click 'ANALYZE & PLOT' to run the statistical analysis."},
+            {"context": "How to Use This Tool", "text": "Step 4: Review results in the 'Visualization' tab — histogram, box plot, capability curves, I-Chart, MR-Chart, and statistics summary."},
+            {"context": "How to Use This Tool", "text": "Step 5: Check the 'History' tab to compare with previous runs. Export results as Excel for reports."},
+            {"context": "How to Use This Tool", "text": "You can download a pre-formatted Excel template using the '📥 Download Template' button in the Data Worksheet tab. Fill it in Excel and upload it back to avoid formatting issues."},
+            {"context": "How to Use This Tool", "text": "Data Worksheet supports up to 1000 data rows. The capacity indicator shows how many rows are used."},
+
+            # --- Capability Indices ---
+            {"context": "Capability Indices (Cp/Cpk)", "text": "Cp = (USL − LSL) / 6σ measures POTENTIAL capability — how well the process COULD perform if perfectly centered. A higher Cp means the tolerance band is wider relative to process spread."},
+            {"context": "Capability Indices (Cp/Cpk)", "text": "Cpk = min[(USL − x̄) / 3σ, (x̄ − LSL) / 3σ] measures ACTUAL capability with real centering included. Cpk ≤ Cp always. If Cpk = Cp, the process is perfectly centered."},
+            {"context": "Capability Indices (Cp/Cpk)", "text": "Cpk interpretation: Cpk < 1.0 = NOT capable (process spread exceeds tolerance). Cpk 1.0–1.33 = Marginally capable. Cpk 1.33–1.67 = Capable. Cpk ≥ 1.67 = Highly capable. Cpk ≥ 2.0 = Six Sigma level."},
+            {"context": "Capability Indices (Cp/Cpk)", "text": "Automotive industry (IATF 16949) typically requires Cpk ≥ 1.33 for ongoing production and Cpk ≥ 1.67 for new processes or critical characteristics."},
+            {"context": "Capability Indices (Cp/Cpk)", "text": "If Cp is high but Cpk is low, the process is capable but not centered — you need to shift the mean toward the target. The Required Shift (Δ) tells you exactly how much."},
+            {"context": "Capability Indices (Cp/Cpk)", "text": "Pp = (USL − LSL) / 6σ_overall and Ppk = min[(USL − x̄) / 3σ_overall, (x̄ − LSL) / 3σ_overall] use OVERALL (long-term) standard deviation including between-subgroup variation. Ppk ≤ Cpk always."},
+
+            # --- Control Charts ---
+            {"context": "Control Charts (I-MR)", "text": "The I-Chart (Individuals Chart) plots each measured value in sequence. The center line (CL) is x̄, UCL = x̄ + 3σ, LCL = x̄ − 3σ. Points outside UCL/LCL indicate the process is out of statistical control."},
+            {"context": "Control Charts (I-MR)", "text": "The MR-Chart (Moving Range) plots |Xᵢ − Xᵢ₋₁| — the absolute difference between consecutive measurements. MR̄ is the average moving range, MR UCL = 3.267 × MR̄ (D4 constant for n=2). No LCL for MR chart."},
+            {"context": "Control Charts (I-MR)", "text": "Use the 'Show Points' filter (10/25/50/100/250/500/All) to control how many data points are displayed on the control charts. This helps focus on recent data or see the full picture."},
+            {"context": "Control Charts (I-MR)", "text": "Zone A is between ±2σ and ±3σ (~4.28% of data). Zone B is between ±1σ and ±2σ (~27.18% of data). Zone C is within ±1σ (~68.27% of data). The percentages assume a normal distribution."},
+            {"context": "Control Charts (I-MR)", "text": "Warning limits (±2σ) are shown as amber dotted lines. These are optional — toggle them with the 'Show Warning Limits (±2σ)' checkbox. Points between 2σ and 3σ are early warnings of potential issues."},
+            {"context": "Control Charts (I-MR)", "text": "±1σ zone lines (purple) are available in the legend — click their name in the legend to toggle visibility on the I-Chart."},
+            {"context": "Control Charts (I-MR)", "text": "LSL, USL, and Target Mean are displayed on the I-Chart as green dash-dot and purple long-dash lines respectively, if specification limits are set."},
+
+            # --- Western Electric Rules ---
+            {"context": "Western Electric Rules", "text": "Rule 1: Any single point beyond ±3σ (UCL or LCL) = Out of Control. This is the most basic rule and is always checked."},
+            {"context": "Western Electric Rules", "text": "Rule 2: Two out of three consecutive points beyond ±2σ on the same side = Warning signal of a process shift."},
+            {"context": "Western Electric Rules", "text": "Rule 3: Four out of five consecutive points beyond ±1σ on the same side = Developing trend."},
+            {"context": "Western Electric Rules", "text": "Rule 4: Eight or more consecutive points on the same side of the center line = Process shift (mean has moved)."},
+            {"context": "Western Electric Rules", "text": "Rule 5: Six consecutive points steadily increasing or decreasing = Trend (tool wear, drift, temperature change)."},
+
+            # --- Standard Deviation ---
+            {"context": "Standard Deviation (σ)", "text": "σ (sigma) measures process variation — the spread of measured values around the mean. Calculated as STDEV.S (sample standard deviation with n−1 degrees of freedom)."},
+            {"context": "Standard Deviation (σ)", "text": "6σ Spread contains 99.73% of all data in a normal distribution. 8σ Spread (±4σ) contains 99.9937%. These define the natural process limits."},
+            {"context": "Standard Deviation (σ)", "text": "To reduce σ, investigate and control sources of variation: machine vibration, tool wear, material inconsistency, temperature fluctuations, operator technique."},
+            {"context": "Standard Deviation (σ)", "text": "The relationship between σ and PPM: at ±3σ = 2,700 PPM defective. At ±4σ = 63 PPM. At ±5σ = 0.57 PPM. At ±6σ = 0.002 PPM (3.4 with 1.5σ shift)."},
+
+            # --- PPM & Sigma Level ---
+            {"context": "PPM & Sigma Level", "text": "PPM (Parts Per Million) is the defect rate. PPM = P(defect) × 1,000,000. For example, 0.1% defect rate = 1,000 PPM."},
+            {"context": "PPM & Sigma Level", "text": "Sigma level table: 1σ = 691,462 PPM. 2σ = 308,538 PPM. 3σ = 66,807 PPM. 4σ = 6,210 PPM. 5σ = 233 PPM. 6σ = 3.4 PPM (with 1.5σ shift)."},
+            {"context": "PPM & Sigma Level", "text": "PPM below LSL means parts that are too small/thin/weak. PPM above USL means parts that are too large/thick. Both come from the tail probabilities of the normal distribution."},
+
+            # --- Hypothesis Testing ---
+            {"context": "Hypothesis Testing", "text": "Z-test determines if the process mean (μ) is statistically different from Target Mean (Tₘ). Z = (x̄ − Tₘ) / (σ / √n). Large |Z| = significant shift."},
+            {"context": "Hypothesis Testing", "text": "Null Hypothesis (H₀): μ = Tₘ (process is on target). Alternative Hypothesis (H₁): μ ≠ Tₘ (two-sided), μ > Tₘ (upper), or μ < Tₘ (lower)."},
+            {"context": "Hypothesis Testing", "text": "p-value < 0.05 → Reject H₀ (significant evidence the mean has shifted). p-value ≥ 0.05 → Fail to Reject H₀ (no significant evidence of shift)."},
+            {"context": "Hypothesis Testing", "text": "Two-Sided test: Use when deviations in BOTH directions are concerning (e.g., diameter must be exactly Tₘ). Upper-Sided: concern is mean ABOVE target. Lower-Sided: concern is mean BELOW target."},
+            {"context": "Hypothesis Testing", "text": "Confidence Level = 1 − α. At 95% confidence (α = 0.05), if p < 0.05 you reject H₀. At 99% confidence (α = 0.01), you need p < 0.01 to reject."},
+
+            # --- Distribution ---
+            {"context": "Distribution", "text": "Normal distribution is the default assumption for most machining processes (turning, grinding, milling, stamping, injection molding) when the process is stable."},
+            {"context": "Distribution", "text": "Lognormal distribution applies when values are always positive and right-skewed (e.g., surface roughness, concentricity, contamination levels). Log-transform the data and check normality."},
+            {"context": "Distribution", "text": "A skewness near 0 and kurtosis near 0 (excess) indicate a distribution close to normal. High positive skewness suggests lognormal may fit better."},
+
+            # --- Additional Metrics ---
+            {"context": "Additional Metrics", "text": "x̄ ± 4σ Spread contains ~99.9937% of process output — a conservative view. x̄ ± 3σ Spread (99.73%) is the standard for control limits."},
+            {"context": "Additional Metrics", "text": "P(x < LSL) and P(x > USL) are the tail probabilities from the normal CDF. They represent the fraction of parts expected to fall outside specifications."},
+            {"context": "Additional Metrics", "text": "P(x < Tₘ) should be 50% for a perfectly centered process. Values far from 50% indicate the process mean is shifted from target."},
+            {"context": "Additional Metrics", "text": "Required Shift (Δ) = Tₘ − x̄. Positive Δ means increase the mean (parts are too small). Negative Δ means decrease the mean (parts are too large)."},
+            {"context": "Additional Metrics", "text": "Required Tolerance = Target Index × 6σ. This tells you the minimum tolerance band needed for the current process variation to meet your capability target."},
+
+            # --- Troubleshooting ---
+            {"context": "Troubleshooting", "text": "If Cpk is low but Cp is good: Your process spread is fine but the mean is off-center. Apply the Required Shift (Δ) to recenter."},
+            {"context": "Troubleshooting", "text": "If both Cp and Cpk are low: Process variation is too high. Investigate sources of variation — machine condition, material, tooling, environment."},
+            {"context": "Troubleshooting", "text": "If control chart shows trends or runs: Process is drifting. Check tool wear, temperature drift, material batch changes. Implement SPC monitoring."},
+            {"context": "Troubleshooting", "text": "If many points are outside control limits: The process is unstable. Do NOT calculate capability indices until the process is in statistical control first."},
+            {"context": "Troubleshooting", "text": "If data is not normal: Check skewness and kurtosis. Consider lognormal transformation. Remove outliers if justified. Increase sample size."},
+            {"context": "Troubleshooting", "text": "If you see 'Need ≥2 data points': Enter at least 2 measurements in the Data Worksheet or in the manual entry fields."},
+            {"context": "Troubleshooting", "text": "If the worksheet upload doesn't work: Ensure your file has at least one numeric column. The tool uses the first numeric column as measurement values."},
+
+            # --- History & Export ---
+            {"context": "History & Export", "text": "Every time you click 'ANALYZE & PLOT', the results are saved to the History tab with a timestamp. Up to 250 runs are kept."},
+            {"context": "History & Export", "text": "Use the History tab filters to search by name, verdict, or characteristic. Select rows with checkboxes and click 'Export Selected' to download as Excel."},
+            {"context": "History & Export", "text": "The History Cpk Trend chart shows how Cpk has changed over time. A declining trend indicates the process is degrading and needs attention."},
+            {"context": "History & Export", "text": "You can download the full history as CSV using the 'Download History CSV' button for further analysis in Excel or other tools."},
+
+            # --- Industry Standards ---
+            {"context": "Industry Standards", "text": "IATF 16949 (Automotive): Cpk ≥ 1.33 for production, Cpk ≥ 1.67 for new processes/safety-critical features. Some OEMs require Cpk ≥ 2.0 for critical dimensions."},
+            {"context": "Industry Standards", "text": "ISO 22514 defines capability study procedures. Short-term (Cm/Cmk) uses ≥50 parts from one setup. Long-term (Pp/Ppk) uses ≥100 parts across multiple setups/shifts."},
+            {"context": "Industry Standards", "text": "Aerospace (AS9100): Process capability requirements vary by customer but typically Cpk ≥ 1.33. Some require Cpk ≥ 1.5 for critical features."},
+            {"context": "Industry Standards", "text": "Medical devices (ISO 13485): Capability requirements depend on risk classification. Critical-to-quality features often require Cpk ≥ 1.33 minimum."},
         ]
 
         return [
@@ -2195,7 +2175,7 @@ class Chatbot:
         ]
 
         if not keywords:
-            return "Please ask a more specific question using keywords like 'Cp', 'Lognormal', 'Hypothesis', etc."
+            return "Please ask a more specific question using keywords like 'Cp', 'Cpk', 'control chart', 'histogram', 'PPM', 'hypothesis', 'troubleshooting', etc."
 
         best_match = None
         highest_score = 0
@@ -2205,9 +2185,8 @@ class Chatbot:
             for keyword in keywords:
                 if keyword in section["lower"]:
                     current_score += 1
-                    # Bonus for matching context
                     if keyword in section["context"].lower():
-                        current_score += 1
+                        current_score += 2  # Stronger context bonus
 
             if current_score > highest_score:
                 highest_score = current_score
@@ -2217,15 +2196,18 @@ class Chatbot:
                 and best_match
                 and len(section["original"]) < len(best_match["original"])
             ):
-                best_match = section  # Prefer shorter, more direct answers
+                best_match = section
 
         if best_match:
-            context_prefix = f'Regarding "{best_match["context"]}": '
-            answer = best_match["original"]
-            truncated_answer = (answer[:247] + "...") if len(answer) > 250 else answer
-            return f"{context_prefix} {truncated_answer}"
+            return f'**{best_match["context"]}**\n\n{best_match["original"]}'
         else:
-            return "Sorry, I couldn't find that specific topic in the reference guide. Try keywords like 'Cp', 'Cpk', 'Six Sigma', 'hypothesis', 'distribution', 'LSL', 'tolerance', etc."
+            return ("Sorry, I couldn't find that specific topic. Try keywords like:\n"
+                    "- **Capability:** Cp, Cpk, Pp, Ppk, capability, sigma\n"
+                    "- **Charts:** control chart, I-chart, MR chart, zones, filter\n"
+                    "- **Stats:** standard deviation, PPM, histogram, normal\n"
+                    "- **Testing:** hypothesis, p-value, Z-test, confidence\n"
+                    "- **Help:** troubleshooting, workflow, steps, industry\n"
+                    "- **Data:** template, upload, download, worksheet")
 
 
 # --- Main App ---
@@ -4024,20 +4006,65 @@ with tab_history:
     if not st.session_state.history:
         st.info("No history available. Run an analysis to log it here.")
     else:
-        # Filters
+        # ---------- Summary metrics ----------
+        hist_df_all = pd.DataFrame(st.session_state.history)
+        cpk_vals = pd.to_numeric(hist_df_all.get("CpkCurrent", pd.Series()), errors="coerce").dropna()
+        sum_cols = st.columns(5)
+        with sum_cols[0]:
+            st.metric("Total Runs", len(st.session_state.history))
+        with sum_cols[1]:
+            st.metric("Avg Cpk", f"{cpk_vals.mean():.3f}" if len(cpk_vals) else "—")
+        with sum_cols[2]:
+            st.metric("Best Cpk", f"{cpk_vals.max():.3f}" if len(cpk_vals) else "—")
+        with sum_cols[3]:
+            st.metric("Worst Cpk", f"{cpk_vals.min():.3f}" if len(cpk_vals) else "—")
+        with sum_cols[4]:
+            good_count = sum(1 for e in st.session_state.history if "GOOD" in e.get("verdict", ""))
+            st.metric("Pass Rate", f"{good_count / len(st.session_state.history) * 100:.0f}%")
+
+        # ---------- Cpk trend chart ----------
+        if len(cpk_vals) >= 2:
+            st.subheader("📈 Cpk Trend Over Time")
+            trend_df = hist_df_all[["id", "CpkCurrent"]].copy()
+            trend_df["CpkCurrent"] = pd.to_numeric(trend_df["CpkCurrent"], errors="coerce")
+            trend_df = trend_df.dropna(subset=["CpkCurrent"])
+            trend_df["Timestamp"] = trend_df["id"].apply(
+                lambda v: datetime.datetime.fromisoformat(v) if v else None)
+            trend_df = trend_df.dropna(subset=["Timestamp"]).sort_values("Timestamp")
+
+            fig_trend = go.Figure()
+            fig_trend.add_trace(go.Scatter(
+                x=trend_df["Timestamp"], y=trend_df["CpkCurrent"],
+                mode="lines+markers", name="Cpk",
+                line=dict(color="#3B82F6", width=2),
+                marker=dict(size=6, color="#3B82F6"),
+                hovertemplate="%{x|%Y-%m-%d %H:%M}<br>Cpk: %{y:.3f}<extra></extra>",
+            ))
+            # Threshold lines
+            fig_trend.add_hline(y=1.33, line_dash="dash", line_color="#F59E0B",
+                                annotation_text="Min (1.33)", annotation_position="bottom right")
+            fig_trend.add_hline(y=1.67, line_dash="dash", line_color="#10B981",
+                                annotation_text="Target (1.67)", annotation_position="top right")
+            _fc = "#8b95a5"
+            fig_trend.update_layout(
+                height=280, margin=dict(t=30, b=50, l=50, r=30),
+                xaxis=dict(title="Run Date", tickfont=dict(size=10, color=_fc), gridcolor="rgba(128,128,128,0.15)"),
+                yaxis=dict(title="Cpk", tickfont=dict(size=10, color=_fc), gridcolor="rgba(128,128,128,0.15)"),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color=_fc),
+                showlegend=False,
+            )
+            st.plotly_chart(fig_trend, use_container_width=True, config=PlotManager.PLOT_CONFIG)
+
+        st.divider()
+
+        # ---------- Filters ----------
         hist_filter_cols = st.columns([1.4, 1, 1])
         with hist_filter_cols[0]:
             filter_name = st.text_input("Filter by Name")
         with hist_filter_cols[1]:
             filter_verdict = st.selectbox(
                 "Filter by Verdict",
-                [
-                    "all",
-                    "PROCESS HEALTH: GOOD",
-                    "MARGINAL",
-                    "ACTION REQUIRED",
-                    "INVALID INPUTS",
-                ],
+                ["all", "PROCESS HEALTH: GOOD", "MARGINAL", "ACTION REQUIRED", "INVALID INPUTS"],
             )
         with hist_filter_cols[2]:
             filter_characteristic = st.selectbox(
@@ -4045,80 +4072,43 @@ with tab_history:
                 ["all"] + sorted({entry.get("characteristic_name", entry.get("measurement_name", "")) for entry in st.session_state.history}),
             )
 
-        # Prepare data for display
         history_df = pd.DataFrame(st.session_state.history)
         if "characteristic_name" not in history_df.columns:
             history_df["characteristic_name"] = history_df.get("measurement_name", "")
 
-        # Filter
         filtered_history = history_df
         if filter_name:
             filtered_history = filtered_history[
-                filtered_history["measurement_name"].str.contains(
-                    filter_name, case=False, na=False
-                )
+                filtered_history["measurement_name"].str.contains(filter_name, case=False, na=False)
             ]
         if filter_verdict != "all":
-            filtered_history = filtered_history[
-                filtered_history["verdict"] == filter_verdict
-            ]
+            filtered_history = filtered_history[filtered_history["verdict"] == filter_verdict]
         if filter_characteristic != "all":
             filtered_history = filtered_history[
-                filtered_history["characteristic_name"].fillna(
-                    filtered_history["measurement_name"]
-                )
-                == filter_characteristic
+                filtered_history["characteristic_name"].fillna(filtered_history["measurement_name"]) == filter_characteristic
             ]
 
-        # Select columns for display
         display_cols = [
-            "id",
-            "characteristic_name",
-            "measurement_name",
-            "verdict",
-            "Cp",
-            "CpkCurrent",
-            "shiftValue",
-            "tm",
-            "lsl",
-            "usl",
-            "x_bar",
-            "s",
-            "n_samples",
-            "ppm_below",
-            "ppm_above",
+            "id", "characteristic_name", "measurement_name", "verdict",
+            "Cp", "CpkCurrent", "shiftValue", "tm", "lsl", "usl",
+            "x_bar", "s", "n_samples", "ppm_below", "ppm_above",
         ]
-        # Rename for clarity
         rename_map = {
-            "characteristic_name": "Characteristic",
-            "measurement_name": "Name",
-            "verdict": "Verdict",
-            "CpkCurrent": "Cpk",
-            "shiftValue": "Shift (Δ)",
-            "tm": "Tₘ",
-            "x_bar": "Mean (x̄)",
-            "s": "StdDev (σ)",
-            "n_samples": "n",
-            "ppm_below": "PPM < LSL",
-            "ppm_above": "PPM > USL",
+            "characteristic_name": "Characteristic", "measurement_name": "Name",
+            "verdict": "Verdict", "CpkCurrent": "Cpk", "shiftValue": "Shift (Δ)",
+            "tm": "Tₘ", "x_bar": "Mean (x̄)", "s": "StdDev (σ)",
+            "n_samples": "n", "ppm_below": "PPM < LSL", "ppm_above": "PPM > USL",
         }
 
         display_df = filtered_history[display_cols].copy()
         display_df.insert(0, "Select", False)
         display_df["Timestamp"] = display_df["id"].apply(
-            lambda value: datetime.datetime.fromisoformat(value).strftime(
-                "%Y-%m-%d %H:%M:%S"
-            )
-            if value
-            else ""
+            lambda value: datetime.datetime.fromisoformat(value).strftime("%Y-%m-%d %H:%M:%S") if value else ""
         )
         display_df.rename(columns=rename_map, inplace=True)
 
-        # Format for display
         format_config = {
-            "Select": st.column_config.CheckboxColumn(
-                "Select", help="Choose rows to include in the export."
-            ),
+            "Select": st.column_config.CheckboxColumn("Select", help="Choose rows to include in the export."),
             "Timestamp": st.column_config.TextColumn(),
             "Cp": st.column_config.NumberColumn(format="%.3f"),
             "Cpk": st.column_config.NumberColumn(format="%.3f"),
@@ -4132,72 +4122,52 @@ with tab_history:
             "PPM > USL": st.column_config.NumberColumn(format="%d"),
         }
 
-        st.markdown("Select rows to export:")
+        st.markdown(f"Showing **{len(filtered_history)}** of **{len(st.session_state.history)}** runs. Select rows to export:")
         selection_df = st.data_editor(
-            display_df,
-            column_config=format_config,
-            hide_index=True,
-            use_container_width=True,
-            disabled=[
-                "Timestamp",
-                "Characteristic",
-                "Name",
-                "Verdict",
-                "Cp",
-                "Cpk",
-                "Shift (Δ)",
-                "Tₘ",
-                "LSL",
-                "USL",
-                "Mean (x̄)",
-                "StdDev (σ)",
-                "n",
-                "PPM < LSL",
-                "PPM > USL",
-            ],
-            column_order=[
-                "Select",
-                "Timestamp",
-                "Characteristic",
-                "Name",
-                "Verdict",
-                "Cp",
-                "Cpk",
-                "Shift (Δ)",
-                "Tₘ",
-                "LSL",
-                "USL",
-                "Mean (x̄)",
-                "StdDev (σ)",
-                "n",
-                "PPM < LSL",
-                "PPM > USL",
-            ],
+            display_df, column_config=format_config,
+            hide_index=True, use_container_width=True,
+            disabled=["Timestamp", "Characteristic", "Name", "Verdict", "Cp", "Cpk",
+                       "Shift (Δ)", "Tₘ", "LSL", "USL", "Mean (x̄)", "StdDev (σ)", "n", "PPM < LSL", "PPM > USL"],
+            column_order=["Select", "Timestamp", "Characteristic", "Name", "Verdict", "Cp", "Cpk",
+                          "Shift (Δ)", "Tₘ", "LSL", "USL", "Mean (x̄)", "StdDev (σ)", "n", "PPM < LSL", "PPM > USL"],
             key="history_selection_editor",
         )
 
         selected_ids = selection_df.loc[selection_df["Select"], "id"].tolist()
 
-        if selected_ids:
-            selected_history_data = [
-                entry
-                for entry in st.session_state.history
-                if entry.get("id") in selected_ids
-            ]
+        # Action buttons
+        btn_cols = st.columns([1, 1, 1, 2])
+        with btn_cols[0]:
+            if selected_ids:
+                try:
+                    selected_history_data = [e for e in st.session_state.history if e.get("id") in selected_ids]
+                    history_buffer = exporter.export_selected_history(selected_history_data)
+                    st.download_button(
+                        label=f"📥 Export Selected ({len(selected_ids)})",
+                        data=history_buffer,
+                        file_name=f"Capability_History_Selection_{datetime.date.today()}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True,
+                    )
+                except Exception as e:
+                    st.error(f"Could not generate history export: {e}")
+            else:
+                st.button("📥 Export Selected (0)", use_container_width=True, disabled=True)
 
-            try:
-                history_buffer = exporter.export_selected_history(selected_history_data)
-                st.download_button(
-                    label=f"Export Selected ({len(selected_ids)})",
-                    data=history_buffer,
-                    file_name=f"Capability_History_Selection_{datetime.date.today()}.xlsx",
-                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    use_container_width=False,
-                )
-            except Exception as e:
-                st.error(f"Could not generate history export: {e}")
-        else:
-            st.button("Export Selected (0)", use_container_width=False, disabled=True)
+        with btn_cols[1]:
+            # CSV download of full history
+            csv_data = pd.DataFrame(st.session_state.history).to_csv(index=False)
+            st.download_button(
+                "📄 Download CSV",
+                data=csv_data,
+                file_name=f"SPC_History_{datetime.date.today()}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
+        with btn_cols[2]:
+            if st.button("🗑 Clear History", use_container_width=True):
+                st.session_state.history = []
+                st.rerun()
 
 
 # --- Tab 5: Reference ---
@@ -4207,66 +4177,129 @@ with tab_ref:
     ref_cols = st.columns([2, 1])
 
     with ref_cols[0]:
-        st.subheader("Application Context & Usage Guide")
-        st.markdown(
-            """
-            #### Technical Application: Process Centering and Root Cause Analysis
-            This tool is primarily utilized in **Six Sigma and Statistical Process Control (SPC)** environments for **Process Centering and Tolerance Verification**. It enables engineers to:
-            -   **Quantify Process Drift:** Calculate the exact **Required Shift (Δ)** needed to move the measured process mean (x̄) back to the engineering target (Tₘ).
-            -   **Predict Initial State:** Infer the required **initial dimension/setting** to achieve the target (Tₘ).
-            -   **Verify Tolerance Adequacy:** Determine the minimum **Required Tolerance** (USL - LSL) necessary for the existing process variation (σ) to meet a desired capability index (Cₚₖ, Pₚₖ).
+        st.subheader("Quick Reference Tables")
 
-            #### Step-by-Step Usage
-            1.  **Set the characteristic details:** In **Data Worksheet**, enter the measurement label, description, Tₘ, LSL, and USL.
-            2.  **Load part data:** Enter `DMC / Serial Number` and the measured `Value` for each part, or upload a CSV/Excel file using the first numeric column as the measurement values.
-            3.  **Run analysis:** In **Analysis & Report**, choose manual or worksheet mode and click **ANALYZE & PLOT**.
-            4.  **Review plots:** In **Visualization**, inspect the worksheet distribution histogram, box plot, capability plots, and control chart.
-            5.  **Review results:** Use the summary and history tabs to evaluate capability and trace prior runs.
-            """
-        )
-        st.divider()
-        st.subheader("Concepts Overview: Six Sigma & Capability Indices")
-        st.markdown(
-            """
-            #### Core Automotive Capability Formulas
-            -   **Cp = (USL - LSL) / 6σ**
-            -   **Cpk = min[(USL - x̄) / 3σ, (x̄ - LSL) / 3σ]**
-            -   **Required Shift (Δ) = Tₘ - x̄**
-            -   **Required Tolerance = Target Index × 6σ**
+        # --- Cpk Thresholds ---
+        with st.expander("📏 Cpk / Capability Thresholds", expanded=True):
+            st.markdown("""
+| Cpk Range | Rating | PPM (approx.) | Action |
+|-----------|--------|---------------|--------|
+| < 1.00 | ❌ Not Capable | > 2,700 | Process redesign or tighter controls needed |
+| 1.00 – 1.33 | ⚠️ Marginal | 63 – 2,700 | Improvement required, monitor closely |
+| 1.33 – 1.67 | ✅ Capable | 0.6 – 63 | Meets most industry standards |
+| 1.67 – 2.00 | ✅ Highly Capable | < 0.6 | Meets automotive/safety-critical requirements |
+| ≥ 2.00 | 🏆 Six Sigma | < 0.002 | World-class capability |
+""")
 
-            #### Manufacturing Interpretation
-            -   **Cp** checks potential capability if the process is perfectly centered.
-            -   **Cpk** checks real capability with actual centering error included.
-            -   **PPM** estimates expected nonconforming parts above USL or below LSL.
-            -   This tool assumes a **normal dimensional-process model**, which fits most machined, turned, ground, stamped, or molded size characteristics after the process is stable.
-            """
-        )
-        st.divider()
-        st.subheader("Additional Metric Definitions")
-        st.markdown(
-            """
-            -   **x̄ ± 4σ Spread:** Contains ~99.9937% of process output, a conservative view of process spread.
-            -   **P(x < LSL) & P(x > USL):** Probability a single part will fall outside specification limits.
-            -   **P(x < Tₘ):** Probability a measurement will fall below the Target Mean. Should be 50% for a centered process.
-            -   **PPM (Parts Per Million):** A measure of the defect rate (e.g., 0.001% = 10 PPM).
-            """
-        )
-        st.divider()
-        st.subheader("Hypothesis Testing & Confidence Level")
-        st.markdown(
-            """
-            This tool performs a **Z-test** to determine if the true process mean (μ) is statistically different from the **Target Mean (Tₘ)**.
-            -   **Null Hypothesis (H₀): μ = Tₘ**. (Assumes the process is on target).
-            -   **p-value:** The probability of observing your sample results if H₀ were true. A small p-value (e.g., < 0.05) provides evidence against H₀.
-            -   **Result: Fail to Reject H₀:** High p-value. No significant evidence the mean has shifted.
-            -   **Result: Reject H₀:** Low p-value. Significant evidence the mean has shifted.
+        # --- Sigma Level Table ---
+        with st.expander("📊 Sigma Level & PPM Table"):
+            st.markdown("""
+| Sigma Level | Yield (%) | DPMO (PPM) | Cpk |
+|-------------|-----------|------------|-----|
+| 1σ | 30.85% | 691,462 | 0.33 |
+| 2σ | 69.15% | 308,538 | 0.67 |
+| 3σ | 93.32% | 66,807 | 1.00 |
+| 4σ | 99.3790% | 6,210 | 1.33 |
+| 5σ | 99.97670% | 233 | 1.67 |
+| 6σ | 99.99966% | 3.4 | 2.00 |
 
-            #### When to Use Each Hypothesis Type
-            -   **Two-Sided (Default):** Deviations in **both directions** are of concern.
-            -   **Upper-Sided:** Critical to assess if the mean is significantly **above** the target.
-            -   **Lower-Sided:** Critical to assess if the mean is significantly **below** the target.
-            """
-        )
+> *PPM values include the standard 1.5σ long-term shift assumption.*
+""")
+
+        # --- Core SPC Formulas ---
+        with st.expander("🔬 Core SPC Formulas"):
+            st.markdown("""
+| Formula | Expression | Purpose |
+|---------|-----------|---------|
+| **Cp** | (USL − LSL) / 6σ | Potential capability (centered) |
+| **Cpk** | min[(USL − x̄)/3σ, (x̄ − LSL)/3σ] | Actual capability (with shift) |
+| **Pp** | (USL − LSL) / 6σ_overall | Long-term potential performance |
+| **Ppk** | min[(USL − x̄)/3σ_overall, (x̄ − LSL)/3σ_overall] | Long-term actual performance |
+| **Shift (Δ)** | Tₘ − x̄ | Required mean adjustment |
+| **Z-score** | (x̄ − Tₘ) / (σ / √n) | Hypothesis test statistic |
+| **UCL** | x̄ + 3σ | Upper control limit |
+| **LCL** | x̄ − 3σ | Lower control limit |
+| **MR̄** | Σ|Xᵢ − Xᵢ₋₁| / (n−1) | Average moving range |
+| **MR UCL** | 3.267 × MR̄ | MR chart upper control limit |
+""")
+
+        # --- Control Chart Zones ---
+        with st.expander("🎯 Control Chart Zones (I-MR)"):
+            st.markdown("""
+| Zone | Range | Expected % | Color |
+|------|-------|-----------|-------|
+| **Zone C** | x̄ ± 1σ | 68.27% | Green (normal) |
+| **Zone B** | x̄ ± 1σ to ± 2σ | 27.18% | Amber (caution) |
+| **Zone A** | x̄ ± 2σ to ± 3σ | 4.28% | Red (warning) |
+| **Outside** | Beyond ± 3σ | 0.27% | Out of Control |
+
+**Western Electric Rules for detecting out-of-control conditions:**
+1. Any single point beyond ±3σ
+2. Two of three consecutive points beyond ±2σ (same side)
+3. Four of five consecutive points beyond ±1σ (same side)
+4. Eight consecutive points on the same side of CL
+5. Six consecutive points trending up or down
+""")
+
+        # --- Industry Standards ---
+        with st.expander("🏭 Industry Standard Requirements"):
+            st.markdown("""
+| Standard | Application | Cpk Requirement |
+|----------|------------|-----------------|
+| **IATF 16949** | Automotive production | ≥ 1.33 (ongoing), ≥ 1.67 (new process) |
+| **VDA 6.1** | German automotive | ≥ 1.33 (Cmk), ≥ 1.67 (critical) |
+| **AS9100** | Aerospace | ≥ 1.33 (typical), ≥ 1.5 (critical) |
+| **ISO 13485** | Medical devices | ≥ 1.33 (critical features) |
+| **Six Sigma** | General manufacturing | ≥ 2.0 (6σ target) |
+| **ISO 22514** | Capability study standard | Defines Cm/Cmk/Pp/Ppk procedures |
+""")
+
+        st.divider()
+
+        # --- Detailed Reference Sections ---
+        with st.expander("📖 Application Context & Usage Guide"):
+            st.markdown("""
+#### Technical Application: Process Centering and Root Cause Analysis
+This tool is primarily utilized in **Six Sigma and SPC** environments for **Process Centering and Tolerance Verification**:
+-   **Quantify Process Drift:** Calculate the exact **Δ = Tₘ − x̄** needed to re-center the process.
+-   **Predict Initial State:** Infer the required initial dimension/setting to achieve target after process variables.
+-   **Verify Tolerance Adequacy:** Determine the minimum **Required Tolerance** for desired Cpk/Ppk.
+
+#### Step-by-Step Usage
+1.  **Data Worksheet:** Enter measurement label, Tₘ, LSL, USL, and measured values.
+2.  **Load data:** Type, upload CSV/Excel, or use '📥 Download Template' → fill → upload.
+3.  **Analysis & Report:** Select mode → click **ANALYZE & PLOT**.
+4.  **Visualization:** Histogram, box plot, I-Chart, MR-Chart with filter, stats summary.
+5.  **History:** Compare runs over time, export as Excel or CSV.
+""")
+
+        with st.expander("📖 Hypothesis Testing & Confidence Level"):
+            st.markdown("""
+This tool performs a **Z-test** to determine if μ ≠ Tₘ:
+-   **H₀: μ = Tₘ** (on target) vs. **H₁: μ ≠ Tₘ** (shifted)
+-   **p-value < 0.05** → Reject H₀ (significant shift detected)
+-   **p-value ≥ 0.05** → Fail to Reject H₀ (no significant evidence of shift)
+
+| Test Type | When to Use |
+|-----------|-------------|
+| **Two-Sided** | Both directions matter (e.g., diameter) |
+| **Upper-Sided** | Only concerned if mean is ABOVE target |
+| **Lower-Sided** | Only concerned if mean is BELOW target |
+""")
+
+        with st.expander("📖 Additional Metric Definitions"):
+            st.markdown("""
+| Metric | Definition |
+|--------|-----------|
+| **x̄ ± 4σ Spread** | Contains ~99.9937% of output (conservative) |
+| **P(x < LSL)** | Probability a part is below lower spec |
+| **P(x > USL)** | Probability a part is above upper spec |
+| **P(x < Tₘ)** | Should be 50% if centered; measures bias |
+| **PPM** | Defect rate in parts per million |
+| **MR̄** | Average moving range (point-to-point variation) |
+| **Required Shift (Δ)** | Tₘ − x̄ (positive = increase, negative = decrease) |
+| **Required Tolerance** | Target Index × 6σ (minimum spec band needed) |
+""")
 
     with ref_cols[1]:
         st.subheader("Guide Chatbot")
