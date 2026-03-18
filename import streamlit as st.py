@@ -3658,133 +3658,206 @@ with tab_viz:
                 figs["hist"], use_container_width=True, config=PlotManager.PLOT_CONFIG
             )
 
-        # --- Control Chart (Run Chart) ---
+        # --- Control Charts (I-Chart + MR-Chart with Filter) ---
         if res and res.get("importedData") and len(res.get("importedData", [])) >= 5:
-            st.subheader("📊 Control Chart (Individual Values)")
+            st.subheader("📊 Control Charts")
 
-            data_points = res.get("importedData", [])
-            x_bar = res.get("x_bar", np.mean(data_points))
-            s = res.get("s", np.std(data_points, ddof=1))
+            data_points_all = res.get("importedData", [])
+            total_n = len(data_points_all)
+
+            # --- Filter control ---
+            ctrl_cols = st.columns([1, 2, 1])
+            with ctrl_cols[0]:
+                filter_options = [10, 25, 50, 100, 250, 500, "All"]
+                # Only show options up to and including the total count
+                valid_options = [opt for opt in filter_options
+                                 if opt == "All" or (isinstance(opt, int) and opt <= total_n)]
+                if not valid_options or valid_options[-1] != "All":
+                    valid_options.append("All")
+                default_idx = min(2, len(valid_options) - 1)  # Default to 50 or closest
+                show_n = st.selectbox(
+                    "Show Points",
+                    valid_options,
+                    index=default_idx,
+                    key="ctrl_chart_filter",
+                    help="Filter the number of data points displayed in control charts",
+                )
+            with ctrl_cols[1]:
+                effective_n = total_n if show_n == "All" else int(show_n)
+                st.info(f"Showing **{min(effective_n, total_n)}** of **{total_n}** data points")
+            with ctrl_cols[2]:
+                show_warnings = st.checkbox("Show Warning Limits (±2σ)", value=True, key="show_uwl")
+
+            # Slice data
+            data_points = data_points_all[:effective_n]
             n = len(data_points)
+            x_bar = float(np.mean(data_points))
+            s = float(np.std(data_points, ddof=1)) if n >= 2 else 0.0
 
-            # Calculate control limits (3-sigma)
+            # I-MR constants
             ucl = x_bar + 3 * s
             lcl = x_bar - 3 * s
+            uwl = x_bar + 2 * s
+            lwl = x_bar - 2 * s
 
-            # Create control chart
+            # Moving Range
+            mr_values = [abs(data_points[i] - data_points[i - 1]) for i in range(1, n)]
+            mr_bar = float(np.mean(mr_values)) if mr_values else 0.0
+            mr_ucl = 3.267 * mr_bar  # D4 for n=2
+
+            # ====== I-CHART ======
             fig_control = go.Figure()
 
-            # Data points
             fig_control.add_trace(
                 go.Scatter(
                     x=list(range(1, n + 1)),
                     y=data_points,
                     mode="lines+markers",
-                    name="Data",
+                    name="Individual Value",
                     line=dict(color="#3B82F6", width=2),
-                    marker=dict(size=6, color="#3B82F6"),
+                    marker=dict(size=5, color="#3B82F6"),
                     hovertemplate="Sample %{x}<br>Value: %{y:.4f}<extra></extra>",
                 )
             )
 
-            # Center line (mean)
             fig_control.add_trace(
                 go.Scatter(
-                    x=[1, n],
-                    y=[x_bar, x_bar],
-                    mode="lines",
-                    name=f"Mean (x̄={x_bar:.4f})",
+                    x=[1, n], y=[x_bar, x_bar],
+                    mode="lines", name=f"CL (x̄={x_bar:.4f})",
                     line=dict(color="#10B981", width=2, dash="solid"),
                 )
             )
-
-            # UCL
             fig_control.add_trace(
                 go.Scatter(
-                    x=[1, n],
-                    y=[ucl, ucl],
-                    mode="lines",
-                    name=f"UCL ({ucl:.4f})",
+                    x=[1, n], y=[ucl, ucl],
+                    mode="lines", name=f"UCL ({ucl:.4f})",
+                    line=dict(color="#EF4444", width=1.5, dash="dash"),
+                )
+            )
+            fig_control.add_trace(
+                go.Scatter(
+                    x=[1, n], y=[lcl, lcl],
+                    mode="lines", name=f"LCL ({lcl:.4f})",
                     line=dict(color="#EF4444", width=1.5, dash="dash"),
                 )
             )
 
-            # LCL
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n],
-                    y=[lcl, lcl],
-                    mode="lines",
-                    name=f"LCL ({lcl:.4f})",
-                    line=dict(color="#EF4444", width=1.5, dash="dash"),
+            if show_warnings:
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[1, n], y=[uwl, uwl],
+                        mode="lines", name=f"UWL ({uwl:.4f})",
+                        line=dict(color="#F59E0B", width=1, dash="dot"),
+                    )
                 )
-            )
+                fig_control.add_trace(
+                    go.Scatter(
+                        x=[1, n], y=[lwl, lwl],
+                        mode="lines", name=f"LWL ({lwl:.4f})",
+                        line=dict(color="#F59E0B", width=1, dash="dot"),
+                    )
+                )
 
-            # Warning limits (2-sigma)
-            uwl = x_bar + 2 * s
-            lwl = x_bar - 2 * s
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n],
-                    y=[uwl, uwl],
-                    mode="lines",
-                    name=f"UWL ({uwl:.4f})",
-                    line=dict(color="#F59E0B", width=1, dash="dot"),
-                )
-            )
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n],
-                    y=[lwl, lwl],
-                    mode="lines",
-                    name=f"LWL ({lwl:.4f})",
-                    line=dict(color="#F59E0B", width=1, dash="dot"),
-                )
-            )
-
-            # Highlight out-of-control points
+            # Out-of-control points
             ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
             if ooc_indices:
                 fig_control.add_trace(
                     go.Scatter(
                         x=[i + 1 for i in ooc_indices],
                         y=[data_points[i] for i in ooc_indices],
-                        mode="markers",
-                        name="Out of Control",
-                        marker=dict(
-                            size=12,
-                            color="#EF4444",
-                            symbol="circle-open",
-                            line=dict(width=2),
-                        ),
+                        mode="markers", name="Out of Control",
+                        marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
                     )
                 )
 
-            fig_control.update_layout(
-                title="Individual Values Control Chart (I-Chart)",
-                xaxis_title="Sample Number",
-                yaxis_title="Value",
-                template="plotly_white",
-                height=400,
+            _fc = "#8b95a5"
+            _ctrl_layout = dict(
+                height=380,
+                margin=dict(t=55, b=65, l=55, r=25),
                 hovermode="x unified",
-                legend=dict(
-                    orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
-                ),
+                xaxis=dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
+                           tickfont=dict(size=10, color=_fc),
+                           gridcolor="rgba(128,128,128,0.15)"),
+                yaxis=dict(title=dict(text="Value", font=dict(color=_fc, size=11)),
+                           tickfont=dict(size=10, color=_fc),
+                           gridcolor="rgba(128,128,128,0.15)"),
+                legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
+                            bgcolor="rgba(128,128,128,0.08)", font=dict(size=10, color=_fc)),
+                hoverlabel=dict(font_size=11, bgcolor="rgba(30,41,59,0.92)",
+                                font_color="#e2e8f0", bordercolor="rgba(128,128,128,0.3)"),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color=_fc),
             )
 
-            st.plotly_chart(
-                fig_control, use_container_width=True, config=PlotManager.PLOT_CONFIG
+            fig_control.update_layout(
+                title=dict(text=f"I-Chart — Individual Values ({n} points)", font=dict(size=12, color=_fc)),
+                **_ctrl_layout,
             )
 
-            # Out-of-control alert
+            st.plotly_chart(fig_control, use_container_width=True, config=PlotManager.PLOT_CONFIG)
+
+            # Alert
             if ooc_indices:
                 st.warning(
-                    f"⚠️ {len(ooc_indices)} point(s) outside control limits at samples: {', '.join(map(str, [i + 1 for i in ooc_indices]))}"
+                    f"⚠️ {len(ooc_indices)} point(s) outside control limits at samples: {', '.join(map(str, [i + 1 for i in ooc_indices[:20]]))}"
+                    + (f" ... and {len(ooc_indices) - 20} more" if len(ooc_indices) > 20 else "")
                 )
             else:
-                st.success(
-                    "✅ All points within control limits - process is in statistical control"
+                st.success("✅ All points within control limits — process is in statistical control")
+
+            # ====== MR-CHART ======
+            fig_mr = go.Figure()
+
+            fig_mr.add_trace(
+                go.Scatter(
+                    x=list(range(2, n + 1)),
+                    y=mr_values,
+                    mode="lines+markers",
+                    name="Moving Range",
+                    line=dict(color="#F97316", width=2),
+                    marker=dict(size=5, color="#F97316"),
+                    hovertemplate="Sample %{x}<br>MR: %{y:.4f}<extra></extra>",
                 )
+            )
+            fig_mr.add_trace(
+                go.Scatter(
+                    x=[2, n], y=[mr_bar, mr_bar],
+                    mode="lines", name=f"MR̄ ({mr_bar:.4f})",
+                    line=dict(color="#10B981", width=2, dash="solid"),
+                )
+            )
+            fig_mr.add_trace(
+                go.Scatter(
+                    x=[2, n], y=[mr_ucl, mr_ucl],
+                    mode="lines", name=f"MR UCL ({mr_ucl:.4f})",
+                    line=dict(color="#EF4444", width=1.5, dash="dash"),
+                )
+            )
+
+            # MR out-of-control
+            mr_ooc = [i for i, v in enumerate(mr_values) if v > mr_ucl]
+            if mr_ooc:
+                fig_mr.add_trace(
+                    go.Scatter(
+                        x=[i + 2 for i in mr_ooc],
+                        y=[mr_values[i] for i in mr_ooc],
+                        mode="markers", name="MR Out of Control",
+                        marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
+                    )
+                )
+
+            fig_mr.update_layout(
+                title=dict(text=f"MR-Chart — Moving Range ({n-1} ranges)", font=dict(size=12, color=_fc)),
+                **{**_ctrl_layout,
+                   "xaxis": dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
+                                 tickfont=dict(size=10, color=_fc),
+                                 gridcolor="rgba(128,128,128,0.15)"),
+                   "yaxis": dict(title=dict(text="Moving Range |Xᵢ − Xᵢ₋₁|", font=dict(color=_fc, size=11)),
+                                 tickfont=dict(size=10, color=_fc),
+                                 gridcolor="rgba(128,128,128,0.15)")},
+            )
+
+            st.plotly_chart(fig_mr, use_container_width=True, config=PlotManager.PLOT_CONFIG)
 
     else:
         st.info(
