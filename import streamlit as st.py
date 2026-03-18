@@ -3359,6 +3359,95 @@ with tab_data:
 
         with upload_cols[2]:
             st.markdown("**Quick actions:**")
+            # --- Download Template ---
+            import io as _io
+            from openpyxl import Workbook as _Wb
+            from openpyxl.styles import Font as _Ft, Alignment as _Al, PatternFill as _Pf, Border as _Bd, Side as _Sd
+
+            def _make_template():
+                """Generate a pre-formatted .xlsx template for data entry."""
+                wb = _Wb()
+                ws = wb.active
+                ws.title = "Data"
+                ws.column_dimensions["A"].width = 8
+                ws.column_dimensions["B"].width = 28
+                ws.column_dimensions["C"].width = 18
+
+                # Header style
+                hdr_font = _Ft(name="Calibri", bold=True, size=11, color="FFFFFF")
+                hdr_fill = _Pf(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+                hdr_align = _Al(horizontal="center", vertical="center")
+                thin_border = _Bd(
+                    left=_Sd(style="thin", color="D1D5DB"),
+                    right=_Sd(style="thin", color="D1D5DB"),
+                    top=_Sd(style="thin", color="D1D5DB"),
+                    bottom=_Sd(style="thin", color="D1D5DB"),
+                )
+
+                for col, header in [(1, "#"), (2, "DMC / Serial Number"), (3, "Value")]:
+                    c = ws.cell(row=1, column=col, value=header)
+                    c.font = hdr_font
+                    c.fill = hdr_fill
+                    c.alignment = hdr_align
+                    c.border = thin_border
+
+                # Sample data (10 rows)
+                sample = [
+                    ("DMC-2024-001", 10.005),
+                    ("DMC-2024-002", 9.998),
+                    ("DMC-2024-003", 10.012),
+                    ("DMC-2024-004", 9.985),
+                    ("DMC-2024-005", 10.008),
+                    ("DMC-2024-006", 9.992),
+                    ("DMC-2024-007", 10.015),
+                    ("DMC-2024-008", 10.001),
+                    ("DMC-2024-009", 9.990),
+                    ("DMC-2024-010", 10.010),
+                ]
+                input_fill = _Pf(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+                alt_fill = _Pf(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
+                for i, (dmc, val) in enumerate(sample, start=1):
+                    r = i + 1
+                    ws.cell(row=r, column=1, value=i).border = thin_border
+                    ws.cell(row=r, column=1).alignment = hdr_align
+                    ws.cell(row=r, column=2, value=dmc).border = thin_border
+                    ws.cell(row=r, column=3, value=val).border = thin_border
+                    ws.cell(row=r, column=3).number_format = "0.0000"
+                    fill = alt_fill if i % 2 == 0 else input_fill
+                    ws.cell(row=r, column=2).fill = fill
+                    ws.cell(row=r, column=3).fill = fill
+
+                # Empty rows for user to fill (up to 100 shown)
+                for i in range(len(sample) + 1, 101):
+                    r = i + 1
+                    ws.cell(row=r, column=1, value=i).border = thin_border
+                    ws.cell(row=r, column=1).alignment = hdr_align
+                    ws.cell(row=r, column=2).border = thin_border
+                    ws.cell(row=r, column=3).border = thin_border
+                    ws.cell(row=r, column=3).number_format = "0.0000"
+                    fill = alt_fill if i % 2 == 0 else input_fill
+                    ws.cell(row=r, column=2).fill = fill
+                    ws.cell(row=r, column=3).fill = fill
+
+                # Instructions row
+                ws.cell(row=103, column=2, value="💡 Replace sample data with your actual measurements.").font = _Ft(
+                    name="Calibri", size=9, italic=True, color="6B7280")
+                ws.cell(row=104, column=2, value="📤 Upload this file back using the file uploader in the Streamlit app.").font = _Ft(
+                    name="Calibri", size=9, italic=True, color="6B7280")
+
+                buf = _io.BytesIO()
+                wb.save(buf)
+                buf.seek(0)
+                return buf.getvalue()
+
+            st.download_button(
+                "📥 Download Template",
+                data=_make_template(),
+                file_name="SPC_Data_Template.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+                help="Download a pre-formatted Excel template with correct columns. Fill it in Excel, then upload it back above.",
+            )
             if st.button("Clear Data", use_container_width=True):
                 st.session_state.last_uploaded_signature = None
                 set_worksheet_data([None] * 20)
