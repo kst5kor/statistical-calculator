@@ -795,20 +795,21 @@ def create_history_sheet(wb):
 
     ws.column_dimensions["A"].width = 2
 
-    ws.merge_cells("B1:O1")
+    ws.merge_cells("B1:Q1")
     ws.cell(row=1, column=2, value="Analysis History Log").font = TITLE_FONT
     ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
 
-    ws.merge_cells("B2:O2")
+    ws.merge_cells("B2:Q2")
     ws.cell(row=2, column=2,
             value="Row 4 is auto-linked to the current Analysis. To save a run, copy-paste Row 4 as VALUES into the next empty row.").font = SUBTITLE_FONT
     ws.cell(row=2, column=2).alignment = Alignment(horizontal="center")
 
     headers = [
-        "Date", "Name", "Mode", "Tₘ", "LSL", "USL", "x̄", "σ", "n",
-        "Cp", "Cpk", "PPM Total", "Shift (Δ)", "Verdict"
+        "Date", "Name", "Characteristic", "Mode", "Tₘ", "LSL", "USL",
+        "x̄", "σ", "n", "Cp", "Cpk", "Shift (Δ)",
+        "PPM < LSL", "PPM > USL", "Verdict"
     ]
-    col_widths = [12, 16, 16, 10, 10, 10, 12, 12, 6, 10, 10, 12, 12, 36]
+    col_widths = [12, 16, 16, 14, 10, 10, 10, 12, 12, 6, 10, 10, 12, 12, 12, 36]
 
     for i, (h, w) in enumerate(zip(headers, col_widths)):
         col = i + 2
@@ -819,22 +820,24 @@ def create_history_sheet(wb):
         cell.alignment = CENTER
         cell.border = THIN_BORDER
 
-    # Pre-linked first row
+    # Pre-linked first row (auto-pulls from Analysis sheet)
     formulas = [
         ('=TODAY()', "YYYY-MM-DD"),
-        ('=Analysis!C5', None),
-        ('=Analysis!C10', None),
-        ('=Analysis!C6', "0.000"),
-        ('=Analysis!C7', "0.000"),
-        ('=Analysis!C8', "0.000"),
-        ('=Analysis!G9', "0.00000"),
-        ('=Analysis!G10', "0.00000"),
-        ('=Analysis!G11', "0"),
-        ('=Analysis!G17', "0.000"),
-        ('=Analysis!G18', "0.000"),
-        ('=Analysis!J10', "#,##0.0"),
-        ('=Analysis!G19', "0.000"),
-        ('=Analysis!B28', None),
+        ('=Analysis!C5', None),       # Name
+        ('=Analysis!C4', None),       # Characteristic
+        ('=Analysis!C10', None),      # Mode
+        ('=Analysis!C6', "0.000"),    # Tm
+        ('=Analysis!C7', "0.000"),    # LSL
+        ('=Analysis!C8', "0.000"),    # USL
+        ('=Analysis!G9', "0.00000"), # x_bar
+        ('=Analysis!G10', "0.00000"),# sigma
+        ('=Analysis!G11', "0"),       # n
+        ('=Analysis!G17', "0.000"),   # Cp
+        ('=Analysis!G18', "0.000"),   # Cpk
+        ('=Analysis!G19', "0.000"),   # Shift
+        ('=Analysis!I9', "#,##0.0"),  # PPM < LSL
+        ('=Analysis!I10', "#,##0.0"),# PPM > USL
+        ('=Analysis!B28', None),      # Verdict
     ]
 
     for i, (f, fmt) in enumerate(formulas):
@@ -846,16 +849,23 @@ def create_history_sheet(wb):
         if fmt:
             cell.number_format = fmt
 
-    # Empty rows
-    for row_idx in range(5, 55):
-        for col in range(2, 16):
+    # Empty rows for user-pasted history (100 rows)
+    for row_idx in range(5, 105):
+        for col in range(2, 18):
             cell = ws.cell(row=row_idx, column=col)
             cell.border = THIN_BORDER
             cell.fill = INPUT_FILL if row_idx % 2 == 0 else PatternFill(
                 start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
 
-    add_cpk_cond_fmt(ws, "L4:L55")
-    add_cpk_cond_fmt(ws, "K4:K55")
+    # Cpk conditional formatting (green/yellow/red)
+    add_cpk_cond_fmt(ws, "L4:L105")
+    add_cpk_cond_fmt(ws, "M4:M105")
+
+    # Instructions at the bottom
+    ws.merge_cells("B107:Q107")
+    ws.cell(row=107, column=2,
+            value="💡 Tip: Select Row 4 → Copy → Select target row → Paste Special → Values Only. This freezes the current analysis as a permanent record.").font = Font(
+        name="Calibri", size=9, italic=True, color="6B7280")
 
     ws.sheet_view.showGridLines = False
 
@@ -868,72 +878,179 @@ def create_reference_sheet(wb):
     ws.sheet_properties.tabColor = GRAY
 
     ws.column_dimensions["A"].width = 2
-    ws.column_dimensions["B"].width = 90
+    ws.column_dimensions["B"].width = 30
+    ws.column_dimensions["C"].width = 38
+    ws.column_dimensions["D"].width = 18
+    ws.column_dimensions["E"].width = 40
 
+    ws.merge_cells("B1:E1")
     ws.cell(row=1, column=2, value="Reference Guide — Formulas, Definitions & How to Use").font = TITLE_FONT
 
-    content = [
-        ("", False),
-        ("How to Use This Workbook", True),
-        ("1. Enter specifications (Tₘ, LSL, USL) in the Analysis sheet (blue cells)", False),
-        ("2. Choose Mode: 'Enter Manually' or 'Use Data Worksheet' (dropdown in C10)", False),
-        ("3. If Manual: enter x̄, σ, n directly in the Analysis sheet", False),
-        ("4. If Worksheet: enter part data in the Data sheet — mean & σ auto-link", False),
-        ("5. All results, probability, hypothesis test, and verdict update INSTANTLY", False),
-        ("6. View charts in the Charts sheet (bell curve + capability bars)", False),
-        ("7. To save a run: go to History sheet, copy Row 4, paste as VALUES into Row 5+", False),
-        ("", False),
-        ("Core Capability Formulas", True),
-        ("  Cp = (USL − LSL) / 6σ  — Potential capability if process is perfectly centered", False),
-        ("  Cpk = min[(USL − x̄) / 3σ,  (x̄ − LSL) / 3σ]  — Actual capability with centering error", False),
-        ("  Required Shift (Δ) = Tₘ − x̄  — How far to adjust the process mean", False),
-        ("  Required Tolerance = Target Index × 6σ  — Minimum tolerance band needed", False),
-        ("", False),
-        ("Capability Index Interpretation (Automotive Standards)", True),
-        ("  Cpk ≥ 1.67  →  ✅ GOOD — Capable (standard automotive target)", False),
-        ("  1.33 ≤ Cpk < 1.67  →  ⚠ ACCEPTABLE — Meets minimum but below target", False),
-        ("  1.00 ≤ Cpk < 1.33  →  ⚠ MARGINAL — High risk, improvement needed", False),
-        ("  Cpk < 1.00  →  ❌ NOT CAPABLE — Produces significant defects", False),
-        ("", False),
-        ("Probability & PPM", True),
-        ("  P(x > USL) — Probability a part exceeds upper spec limit", False),
-        ("  P(x < LSL) — Probability a part falls below lower spec limit", False),
-        ("  PPM = Probability × 1,000,000 — Parts Per Million defective", False),
-        ("", False),
-        ("Hypothesis Testing", True),
-        ("  H₀: μ = Tₘ (process is on target)", False),
-        ("  Z = (x̄ − Tₘ) / (σ / √n)", False),
-        ("  p-value < α → Reject H₀ → Significant shift detected", False),
-        ("  p-value ≥ α → Fail to Reject H₀ → No significant shift", False),
-        ("  Two-Sided: tests if mean differs in either direction", False),
-        ("  Upper-Sided: tests if mean is significantly above target", False),
-        ("  Lower-Sided: tests if mean is significantly below target", False),
-        ("", False),
-        ("Robustness Assessment", True),
-        ("  ROBUST: ±4σ spread contained within specification limits", False),
-        ("  MARGINAL: ±3σ contained but ±4σ is NOT — low tolerance for future shifts", False),
-        ("  NOT ROBUST: ±3σ breaches specification limits", False),
-        ("", False),
-        ("Spread Metrics", True),
-        ("  6σ Spread — Contains ~99.73% of process output (±3σ)", False),
-        ("  8σ Spread — Contains ~99.9937% of process output (±4σ)", False),
-        ("", False),
-        ("Color Coding", True),
-        ("  🟢 Green cells = Good / Capable / Within target", False),
-        ("  🟡 Yellow cells = Warning / Marginal", False),
-        ("  🔴 Red cells = Bad / Action Required / Not capable", False),
-        ("  🔵 Blue cells = Input cells (enter your data here)", False),
-    ]
-
     row = 3
-    for text, is_header in content:
-        cell = ws.cell(row=row, column=2, value=text)
-        if is_header:
-            cell.font = Font(name="Calibri", size=12, bold=True, color=DARK_BLUE)
-            cell.fill = SECTION_FILL
-        else:
-            cell.font = Font(name="Calibri", size=10)
-        cell.alignment = LEFT
+
+    # Helper to write a section header
+    def section_hdr(r, title):
+        ws.merge_cells(f"B{r}:E{r}")
+        c = ws.cell(row=r, column=2, value=title)
+        c.font = Font(name="Calibri", size=12, bold=True, color=DARK_BLUE)
+        c.fill = SECTION_FILL
+        c.alignment = LEFT
+        c.border = THIN_BORDER
+        return r + 1
+
+    # Helper to write a table header row
+    def tbl_hdr(r, cols):
+        for i, h in enumerate(cols):
+            c = ws.cell(row=r, column=2 + i, value=h)
+            c.font = Font(name="Calibri", size=10, bold=True, color="FFFFFF")
+            c.fill = HEADER_FILL
+            c.alignment = CENTER
+            c.border = THIN_BORDER
+        return r + 1
+
+    # Helper to write a table data row
+    def tbl_row(r, vals, fill=None):
+        for i, v in enumerate(vals):
+            c = ws.cell(row=r, column=2 + i, value=v)
+            c.font = Font(name="Calibri", size=10)
+            c.alignment = LEFT if i > 0 else CENTER
+            c.border = THIN_BORDER
+            if fill:
+                c.fill = fill
+        return r + 1
+
+    # ==========================================
+    # Section 1: Cpk / Capability Thresholds
+    # ==========================================
+    row = section_hdr(row, "📏 Cpk / Capability Thresholds")
+    row = tbl_hdr(row, ["Cpk Range", "Rating", "PPM (approx.)", "Action"])
+    cpk_data = [
+        ("< 1.00", "❌ Not Capable", "> 2,700", "Process redesign or tighter controls needed"),
+        ("1.00 – 1.33", "⚠️ Marginal", "63 – 2,700", "Improvement required, monitor closely"),
+        ("1.33 – 1.67", "✅ Capable", "0.6 – 63", "Meets most industry standards"),
+        ("1.67 – 2.00", "✅ Highly Capable", "< 0.6", "Meets automotive/safety-critical"),
+        ("≥ 2.00", "🏆 Six Sigma", "< 0.002", "World-class capability"),
+    ]
+    for d in cpk_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 2: Sigma Level & PPM Table
+    # ==========================================
+    row = section_hdr(row, "📊 Sigma Level & PPM Table")
+    row = tbl_hdr(row, ["Sigma Level", "Yield (%)", "DPMO (PPM)", "Cpk"])
+    sigma_data = [
+        ("1σ", "30.85%", "691,462", "0.33"),
+        ("2σ", "69.15%", "308,538", "0.67"),
+        ("3σ", "93.32%", "66,807", "1.00"),
+        ("4σ", "99.3790%", "6,210", "1.33"),
+        ("5σ", "99.97670%", "233", "1.67"),
+        ("6σ", "99.99966%", "3.4", "2.00"),
+    ]
+    for d in sigma_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 3: Core SPC Formulas
+    # ==========================================
+    row = section_hdr(row, "🔬 Core SPC Formulas")
+    row = tbl_hdr(row, ["Formula", "Expression", "Purpose", ""])
+    formulas_data = [
+        ("Cp", "(USL − LSL) / 6σ", "Potential capability (centered)", ""),
+        ("Cpk", "min[(USL − x̄)/3σ, (x̄ − LSL)/3σ]", "Actual capability (with shift)", ""),
+        ("Pp", "(USL − LSL) / 6σ_overall", "Long-term potential performance", ""),
+        ("Ppk", "min[(USL − x̄)/3σ_overall, (x̄ − LSL)/3σ_overall]", "Long-term actual performance", ""),
+        ("Shift (Δ)", "Tₘ − x̄", "Required mean adjustment", ""),
+        ("Z-score", "(x̄ − Tₘ) / (σ / √n)", "Hypothesis test statistic", ""),
+        ("UCL", "x̄ + 3σ", "Upper control limit", ""),
+        ("LCL", "x̄ − 3σ", "Lower control limit", ""),
+        ("MR̄", "Σ|Xᵢ − Xᵢ₋₁| / (n−1)", "Average moving range", ""),
+        ("MR UCL", "3.267 × MR̄", "MR chart upper control limit", ""),
+    ]
+    for d in formulas_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 4: Control Chart Zones
+    # ==========================================
+    row = section_hdr(row, "🎯 Control Chart Zones (I-MR)")
+    row = tbl_hdr(row, ["Zone", "Range", "Expected %", "Status"])
+    zones_data = [
+        ("Zone C", "x̄ ± 1σ", "68.27%", "Normal — process in control"),
+        ("Zone B", "x̄ ± 1σ to ± 2σ", "27.18%", "Caution — monitor"),
+        ("Zone A", "x̄ ± 2σ to ± 3σ", "4.28%", "Warning — investigate"),
+        ("Outside", "Beyond ± 3σ", "0.27%", "Out of Control — action required"),
+    ]
+    for d in zones_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 5: Western Electric Rules
+    # ==========================================
+    row = section_hdr(row, "⚠️ Western Electric Rules")
+    row = tbl_hdr(row, ["Rule", "Description", "Signal", ""])
+    western_data = [
+        ("Rule 1", "Any single point beyond ±3σ", "Out of Control", ""),
+        ("Rule 2", "2 of 3 consecutive points beyond ±2σ (same side)", "Process shift warning", ""),
+        ("Rule 3", "4 of 5 consecutive points beyond ±1σ (same side)", "Developing trend", ""),
+        ("Rule 4", "8+ consecutive points on same side of CL", "Mean has shifted", ""),
+        ("Rule 5", "6 consecutive points trending up or down", "Drift (tool wear, temp)", ""),
+    ]
+    for d in western_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 6: Industry Standards
+    # ==========================================
+    row = section_hdr(row, "🏭 Industry Standard Requirements")
+    row = tbl_hdr(row, ["Standard", "Application", "Cpk Requirement", ""])
+    industry_data = [
+        ("IATF 16949", "Automotive production", "≥ 1.33 (ongoing), ≥ 1.67 (new)", ""),
+        ("VDA 6.1", "German automotive", "≥ 1.33 (Cmk), ≥ 1.67 (critical)", ""),
+        ("AS9100", "Aerospace", "≥ 1.33 (typical), ≥ 1.5 (critical)", ""),
+        ("ISO 13485", "Medical devices", "≥ 1.33 (critical features)", ""),
+        ("Six Sigma", "General manufacturing", "≥ 2.0 (6σ target)", ""),
+        ("ISO 22514", "Capability study std", "Defines Cm/Cmk/Pp/Ppk procedures", ""),
+    ]
+    for d in industry_data:
+        row = tbl_row(row, d)
+    row += 1
+
+    # ==========================================
+    # Section 7: How to Use & Color Coding
+    # ==========================================
+    row = section_hdr(row, "📖 How to Use This Workbook")
+    steps = [
+        "1. Enter specifications (Tₘ, LSL, USL) in the Analysis sheet (blue cells)",
+        "2. Choose Mode: 'Enter Manually' or 'Use Data Worksheet' (dropdown in C10)",
+        "3. If Manual: enter x̄, σ, n directly in the Analysis sheet",
+        "4. If Worksheet: enter part data in the Data sheet — mean & σ auto-link",
+        "5. All results, probability, hypothesis test, and verdict update INSTANTLY",
+        "6. View charts in the Charts sheet (I-MR control chart, bell curve, capability bars)",
+        "7. To save a run: go to History sheet, copy Row 4, paste as VALUES into Row 5+",
+    ]
+    for step in steps:
+        c = ws.cell(row=row, column=2, value=step)
+        c.font = Font(name="Calibri", size=10)
+        c.alignment = LEFT
+        row += 1
+    row += 1
+
+    row = section_hdr(row, "🎨 Color Coding")
+    colors = [
+        ("🟢 Green cells", "Good / Capable / Within target"),
+        ("🟡 Yellow cells", "Warning / Marginal"),
+        ("🔴 Red cells", "Bad / Action Required / Not capable"),
+        ("🔵 Blue cells", "Input cells (enter your data here)"),
+    ]
+    for emoji_label, desc in colors:
+        ws.cell(row=row, column=2, value=emoji_label).font = Font(name="Calibri", size=10, bold=True)
+        ws.cell(row=row, column=3, value=desc).font = Font(name="Calibri", size=10)
         row += 1
 
     ws.sheet_view.showGridLines = False
