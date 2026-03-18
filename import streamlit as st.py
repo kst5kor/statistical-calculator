@@ -3833,7 +3833,7 @@ with tab_viz:
                 dict(x=1.02, y=lcl, xref="paper", yref="y", text="LCL (x̄−3σ)", showarrow=False,
                      font=dict(size=9, color="#EF4444"), xanchor="left"),
                 dict(x=1.02, y=x_bar, xref="paper", yref="y", text="CL (x̄)", showarrow=False,
-                     font=dict(size=9, color="#10B981", bold=True), xanchor="left"),
+                     font=dict(size=9, color="#10B981"), xanchor="left"),
             ]
             if show_warnings:
                 zone_annotations.extend([
