@@ -429,18 +429,38 @@ def create_data_sheet(wb):
 
     ws.merge_cells("B2:G2")
     ws.cell(row=2, column=2,
-            value='Enter DMC and measured Value below. Statistics auto-link to Analysis sheet when Mode = "Use Data Worksheet".').font = SUBTITLE_FONT
+            value=f'Enter DMC and measured Value below (max {MAX_DATA_ROWS} parts). Statistics auto-link to Analysis sheet.').font = SUBTITLE_FONT
     ws.cell(row=2, column=2).alignment = Alignment(horizontal="center")
 
-    # Characteristic info header (linked from Analysis)
+    # Characteristic info + capacity indicator
     ws.merge_cells("B3:D3")
     ws.cell(row=3, column=2,
             value='=Analysis!C5&" | Tₘ="&TEXT(Analysis!C6,"0.000")&" | LSL="&TEXT(Analysis!C7,"0.000")&" | USL="&TEXT(Analysis!C8,"0.000")').font = Font(
         name="Calibri", size=10, bold=True, color=BLUE)
+    # Capacity bar
+    ws.merge_cells("F3:G3")
+    ws.cell(row=3, column=6,
+            value=f'=G5&" of {MAX_DATA_ROWS} rows used ("&TEXT(G5/{MAX_DATA_ROWS},"0%")&" capacity)"').font = Font(
+        name="Calibri", size=10, bold=True, color=ORANGE)
+    ws.cell(row=3, column=6).alignment = CENTER
 
     # Data table headers
     row = 4
     header_row(ws, row, 2, ["#", "DMC / Serial Number", "Value"])
+
+    # ===== SAMPLE TEMPLATE DATA (10 realistic parts) =====
+    sample_data = [
+        ("DMC-2024-001", 10.005),
+        ("DMC-2024-002", 9.998),
+        ("DMC-2024-003", 10.012),
+        ("DMC-2024-004", 9.985),
+        ("DMC-2024-005", 10.008),
+        ("DMC-2024-006", 9.992),
+        ("DMC-2024-007", 10.015),
+        ("DMC-2024-008", 10.001),
+        ("DMC-2024-009", 9.990),
+        ("DMC-2024-010", 10.010),
+    ]
 
     # Data entry rows
     for i in range(1, MAX_DATA_ROWS + 1):
@@ -453,6 +473,11 @@ def create_data_sheet(wb):
         ws.cell(row=r, column=4).border = THIN_BORDER
         ws.cell(row=r, column=4).fill = INPUT_FILL
         ws.cell(row=r, column=4).number_format = "0.000"
+        # Pre-fill sample data
+        if i <= len(sample_data):
+            dmc, val = sample_data[i - 1]
+            ws.cell(row=r, column=3, value=dmc)
+            ws.cell(row=r, column=4, value=val)
         # Alternating rows
         if i % 2 == 0:
             ws.cell(row=r, column=3).fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
@@ -486,7 +511,7 @@ def create_data_sheet(wb):
     status_row = 5 + len(stats) + 1
     ws.merge_cells(f"F{status_row}:G{status_row}")
     ws.cell(row=status_row, column=6).value = (
-        f'=IF(G5>=2,"✅ "&G5&" data points ready. Analysis sheet auto-linked.","⚠ Need ≥2 data points.")')
+        f'=IF(G5>=2,"✅ "&G5&" of {MAX_DATA_ROWS} data points ready. Analysis auto-linked.","⚠ Need ≥2 data points ({MAX_DATA_ROWS} max allowed).")')
     ws.cell(row=status_row, column=6).font = Font(name="Calibri", size=10, bold=True, color=DARK_GREEN)
 
     # Quick Cp/Cpk preview
@@ -499,6 +524,13 @@ def create_data_sheet(wb):
        formula=f'=IF(G7=""," — ", IF(G7=0,"∞",MIN((Analysis!C8-G6)/(3*G7),(G6-Analysis!C7)/(3*G7))))', fmt="0.000")
     add_cpk_cond_fmt(ws, f"G{preview_row+2}")
 
+    # Sample data note
+    note_row = preview_row + 4
+    ws.merge_cells(f"F{note_row}:G{note_row}")
+    ws.cell(row=note_row, column=6,
+            value="💡 10 sample data points pre-filled as template. Replace with your actual measurements.").font = Font(
+        name="Calibri", size=9, italic=True, color=GRAY)
+
     ws.sheet_view.showGridLines = False
 
 
@@ -509,15 +541,18 @@ def create_charts_sheet(wb):
     ws = wb.create_sheet("Charts")
     ws.sheet_properties.tabColor = ORANGE
 
-    for col, w in [("A",2),("B",12),("C",14),("D",14),("E",14),("F",14)]:
+    for col, w in [("A",2),("B",12),("C",14),("D",14),("E",14),("F",14),
+                   ("G",2),("H",8),("I",14),("J",14),("K",14),("L",14),("M",14)]:
         ws.column_dimensions[col].width = w
 
-    ws.merge_cells("B1:F1")
-    ws.cell(row=1, column=2, value="Visualization — Capability Charts").font = TITLE_FONT
+    ws.merge_cells("B1:M1")
+    ws.cell(row=1, column=2, value="Visualization — Process Capability & Control Charts").font = TITLE_FONT
     ws.cell(row=1, column=2).alignment = Alignment(horizontal="center")
 
+    # ======================== LEFT SIDE: Distribution Charts ========================
+
     # --- Bell curve helper data (z from -4 to +4 in 0.25 steps) ---
-    section_row(ws, 3, 2, 5, "Normal Distribution Curve Data (auto-calculated)")
+    section_row(ws, 3, 2, 5, "Normal Distribution Curve Data")
 
     header_row(ws, 4, 2, ["z", "x Value", "Current PDF", "Centered PDF"])
 
@@ -530,15 +565,12 @@ def create_charts_sheet(wb):
         r = 5 + i
         ws.cell(row=r, column=2, value=z).number_format = "0.00"
         ws.cell(row=r, column=2).border = THIN_BORDER
-        # x = x_bar + z * sigma
         ws.cell(row=r, column=3,
                 value=f"={xbar_ref}+B{r}*{sigma_ref}").number_format = "0.0000"
         ws.cell(row=r, column=3).border = THIN_BORDER
-        # Current PDF
         ws.cell(row=r, column=4,
                 value=f'=IF({sigma_ref}>0,(1/({sigma_ref}*SQRT(2*PI())))*EXP(-0.5*B{r}^2),0)').number_format = "0.0000"
         ws.cell(row=r, column=4).border = THIN_BORDER
-        # Centered PDF (at Tm)
         ws.cell(row=r, column=5,
                 value=f'=IF({sigma_ref}>0,(1/({sigma_ref}*SQRT(2*PI())))*EXP(-0.5*((C{r}-{tm_ref})/{sigma_ref})^2),0)').number_format = "0.0000"
         ws.cell(row=r, column=5).border = THIN_BORDER
@@ -547,7 +579,7 @@ def create_charts_sheet(wb):
 
     # Chart 1: Process Distribution (Current + Centered)
     chart1 = LineChart()
-    chart1.title = "1. Current Process Distribution"
+    chart1.title = "1. Process Distribution — Current vs Centered"
     chart1.y_axis.title = "Density"
     chart1.x_axis.title = "Measurement Value"
     chart1.style = 10
@@ -564,32 +596,136 @@ def create_charts_sheet(wb):
     chart1.set_categories(x_cats)
 
     chart1.series[0].graphicalProperties.line.width = 25000
-    from openpyxl.chart.shapes import GraphicalProperties
-    from openpyxl.drawing.line import LineProperties, LineEndProperties
     chart1.series[0].graphicalProperties.line.solidFill = "B91C1C"  # Red curve
     chart1.series[1].graphicalProperties.line.solidFill = "007BC5"  # Blue curve
     chart1.series[1].graphicalProperties.line.dashStyle = "dash"
 
     ws.add_chart(chart1, "G3")
 
+    # ======================== RIGHT SIDE: Control Charts ========================
+
+    # --- I-MR (Individual & Moving Range) Control Chart Data ---
+    ctrl_start = 3
+    section_row(ws, ctrl_start, 8, 13, "I-MR Control Chart Data (from Data Worksheet)")
+    header_row(ws, ctrl_start + 1, 8, ["#", "Value", "MR", "x̄ (CL)", "UCL", "LCL"])
+
+    # I-MR constants: for individual values, d2=1.128, D4=3.267, D3=0
+    # UCL = x̄ + 2.66*MR̄,  LCL = x̄ - 2.66*MR̄  (where 2.66 = 3/d2 = 3/1.128)
+    # MR UCL = D4*MR̄ = 3.267*MR̄
+    data_ref = "Data!D"  # Column D in Data sheet has the values
+    n_ref = "Data!G5"     # Count
+    mean_ref = "Data!G6"  # Mean
+
+    CTRL_ROWS = 50  # Show up to 50 points in control chart
+    for i in range(1, CTRL_ROWS + 1):
+        r = ctrl_start + 1 + i
+        data_row = 4 + i  # Row in Data sheet
+        # Part #
+        ws.cell(row=r, column=8, value=i).font = Font(size=9, color=GRAY)
+        ws.cell(row=r, column=8).alignment = CENTER
+        ws.cell(row=r, column=8).border = THIN_BORDER
+        # Individual Value (linked from Data sheet)
+        ws.cell(row=r, column=9,
+                value=f'=IF({data_ref}{data_row}="""",NA(),{data_ref}{data_row})').number_format = "0.000"
+        ws.cell(row=r, column=9).border = THIN_BORDER
+        # Moving Range: |Xi - Xi-1|
+        if i == 1:
+            ws.cell(row=r, column=10, value='=NA()').number_format = "0.000"
+        else:
+            prev_data_row = data_row - 1
+            ws.cell(row=r, column=10,
+                    value=f'=IF(OR({data_ref}{data_row}="""",{data_ref}{prev_data_row}=""""),NA(),ABS({data_ref}{data_row}-{data_ref}{prev_data_row}))').number_format = "0.000"
+        ws.cell(row=r, column=10).border = THIN_BORDER
+        # Center Line (Mean)
+        ws.cell(row=r, column=11,
+                value=f'=IF({n_ref}>=2,{mean_ref},NA())').number_format = "0.000"
+        ws.cell(row=r, column=11).border = THIN_BORDER
+        # UCL = x̄ + 2.66 * MR̄ (where MR̄ = average of MR column)
+        ws.cell(row=r, column=12,
+                value=f'=IF({n_ref}>=2,{mean_ref}+2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}),NA())').number_format = "0.000"
+        ws.cell(row=r, column=12).border = THIN_BORDER
+        # LCL = x̄ - 2.66 * MR̄
+        ws.cell(row=r, column=13,
+                value=f'=IF({n_ref}>=2,{mean_ref}-2.66*AVERAGE(J{ctrl_start+3}:J{ctrl_start+1+CTRL_ROWS}),NA())').number_format = "0.000"
+        ws.cell(row=r, column=13).border = THIN_BORDER
+
+    ctrl_last_row = ctrl_start + 1 + CTRL_ROWS
+
+    # Chart 2: I-Chart (Individual Values with Control Limits)
+    chart_i = LineChart()
+    chart_i.title = "2. I-Chart — Individual Values with Control Limits"
+    chart_i.y_axis.title = "Value"
+    chart_i.x_axis.title = "Part Number"
+    chart_i.style = 10
+    chart_i.width = 24
+    chart_i.height = 14
+    chart_i.legend.position = "b"
+
+    cats_ctrl = Reference(ws, min_col=8, min_row=ctrl_start+2, max_row=ctrl_last_row)
+    y_val = Reference(ws, min_col=9, min_row=ctrl_start+1, max_row=ctrl_last_row)
+    y_cl  = Reference(ws, min_col=11, min_row=ctrl_start+1, max_row=ctrl_last_row)
+    y_ucl = Reference(ws, min_col=12, min_row=ctrl_start+1, max_row=ctrl_last_row)
+    y_lcl = Reference(ws, min_col=13, min_row=ctrl_start+1, max_row=ctrl_last_row)
+
+    chart_i.add_data(y_val, titles_from_data=True)
+    chart_i.add_data(y_cl, titles_from_data=True)
+    chart_i.add_data(y_ucl, titles_from_data=True)
+    chart_i.add_data(y_lcl, titles_from_data=True)
+    chart_i.set_categories(cats_ctrl)
+
+    # Style series: Value=blue dots+line, CL=green solid, UCL=red dash, LCL=red dash
+    chart_i.series[0].graphicalProperties.line.solidFill = "3B82F6"  # Blue
+    chart_i.series[0].graphicalProperties.line.width = 18000
+    chart_i.series[1].graphicalProperties.line.solidFill = "059669"  # Green CL
+    chart_i.series[1].graphicalProperties.line.width = 18000
+    chart_i.series[2].graphicalProperties.line.solidFill = "DC2626"  # Red UCL
+    chart_i.series[2].graphicalProperties.line.dashStyle = "dash"
+    chart_i.series[2].graphicalProperties.line.width = 15000
+    chart_i.series[3].graphicalProperties.line.solidFill = "DC2626"  # Red LCL
+    chart_i.series[3].graphicalProperties.line.dashStyle = "dash"
+    chart_i.series[3].graphicalProperties.line.width = 15000
+
+    ws.add_chart(chart_i, "G20")
+
+    # Chart 3: MR Chart (Moving Range)
+    chart_mr = LineChart()
+    chart_mr.title = "3. Moving Range (MR) Chart"
+    chart_mr.y_axis.title = "Moving Range"
+    chart_mr.x_axis.title = "Part Number"
+    chart_mr.style = 10
+    chart_mr.width = 24
+    chart_mr.height = 14
+    chart_mr.legend.position = "b"
+
+    y_mr = Reference(ws, min_col=10, min_row=ctrl_start+1, max_row=ctrl_last_row)
+    chart_mr.add_data(y_mr, titles_from_data=True)
+    chart_mr.set_categories(cats_ctrl)
+
+    chart_mr.series[0].graphicalProperties.line.solidFill = "F97316"  # Orange
+    chart_mr.series[0].graphicalProperties.line.width = 18000
+
+    ws.add_chart(chart_mr, "G36")
+
+    # ======================== BOTTOM: Capability & Spec Reference ========================
+
     # --- Capability bar chart data ---
     cap_start = last_data_row + 3
     section_row(ws, cap_start, 2, 5, "Capability Index Comparison")
-    header_row(ws, cap_start + 1, 2, ["Metric", "Value", "Target", ""])
-    ws.cell(row=cap_start + 2, column=2, value="Cp").border = THIN_BORDER
-    ws.cell(row=cap_start + 2, column=3, value="=Analysis!G17").border = THIN_BORDER
-    ws.cell(row=cap_start + 2, column=3).number_format = "0.00"
-    ws.cell(row=cap_start + 2, column=4, value=f"=Analysis!{C_TARGET}").border = THIN_BORDER
-    ws.cell(row=cap_start + 2, column=4).number_format = "0.00"
-
-    ws.cell(row=cap_start + 3, column=2, value="Cpk").border = THIN_BORDER
-    ws.cell(row=cap_start + 3, column=3, value="=Analysis!G18").border = THIN_BORDER
-    ws.cell(row=cap_start + 3, column=3).number_format = "0.00"
-    ws.cell(row=cap_start + 3, column=4, value=f"=Analysis!{C_TARGET}").border = THIN_BORDER
-    ws.cell(row=cap_start + 3, column=4).number_format = "0.00"
+    header_row(ws, cap_start + 1, 2, ["Metric", "Value", "Target", "Min (1.0)"])
+    for col_idx in [2,3,4,5]:
+        ws.cell(row=cap_start + 2, column=col_idx).border = THIN_BORDER
+        ws.cell(row=cap_start + 3, column=col_idx).border = THIN_BORDER
+    ws.cell(row=cap_start + 2, column=2, value="Cp")
+    ws.cell(row=cap_start + 2, column=3, value="=Analysis!G17").number_format = "0.00"
+    ws.cell(row=cap_start + 2, column=4, value=f"=Analysis!{C_TARGET}").number_format = "0.00"
+    ws.cell(row=cap_start + 2, column=5, value=1.0).number_format = "0.00"
+    ws.cell(row=cap_start + 3, column=2, value="Cpk")
+    ws.cell(row=cap_start + 3, column=3, value="=Analysis!G18").number_format = "0.00"
+    ws.cell(row=cap_start + 3, column=4, value=f"=Analysis!{C_TARGET}").number_format = "0.00"
+    ws.cell(row=cap_start + 3, column=5, value=1.0).number_format = "0.00"
 
     chart2 = BarChart()
-    chart2.title = "2. Capability Index vs Target"
+    chart2.title = "4. Capability Index vs Target"
     chart2.type = "col"
     chart2.style = 10
     chart2.width = 16
@@ -600,19 +736,30 @@ def create_charts_sheet(wb):
     cats = Reference(ws, min_col=2, min_row=cap_start + 2, max_row=cap_start + 3)
     vals = Reference(ws, min_col=3, min_row=cap_start + 1, max_row=cap_start + 3)
     tgts = Reference(ws, min_col=4, min_row=cap_start + 1, max_row=cap_start + 3)
+    mins = Reference(ws, min_col=5, min_row=cap_start + 1, max_row=cap_start + 3)
     chart2.add_data(vals, titles_from_data=True)
     chart2.add_data(tgts, titles_from_data=True)
+    chart2.add_data(mins, titles_from_data=True)
     chart2.set_categories(cats)
 
-    ws.add_chart(chart2, f"G{cap_start}")
+    # Color bars
+    chart2.series[0].graphicalProperties.solidFill = "3B82F6"  # Blue actual
+    chart2.series[1].graphicalProperties.solidFill = "059669"  # Green target
+    chart2.series[2].graphicalProperties.solidFill = "DC2626"  # Red minimum
+
+    ws.add_chart(chart2, f"A{cap_start}")
 
     # Spec line reference
     ref_start = cap_start + 6
-    section_row(ws, ref_start, 2, 4, "Specification Lines")
+    section_row(ws, ref_start, 2, 5, "Specification Summary")
     lv(ws, ref_start+1, 2, "LSL", 3, formula="=Analysis!C7", fmt="0.000")
+    lv(ws, ref_start+1, 4, "Tₘ", 5, formula="=Analysis!C6", fmt="0.000")
     lv(ws, ref_start+2, 2, "USL", 3, formula="=Analysis!C8", fmt="0.000")
-    lv(ws, ref_start+3, 2, "Target (Tₘ)", 3, formula="=Analysis!C6", fmt="0.000")
-    lv(ws, ref_start+4, 2, "Mean (x̄)", 3, formula="=Analysis!G9", fmt="0.000")
+    lv(ws, ref_start+2, 4, "Mean (x̄)", 5, formula="=Analysis!G9", fmt="0.000")
+    lv(ws, ref_start+3, 2, "σ (ACTIVE)", 3, formula="=Analysis!G10", fmt="0.00000")
+    lv(ws, ref_start+3, 4, "n (ACTIVE)", 5, formula="=Analysis!G11", fmt="0")
+    lv(ws, ref_start+4, 2, "6σ Spread", 3, formula="=Analysis!G15", fmt="0.000")
+    lv(ws, ref_start+4, 4, "8σ Spread", 5, formula="=Analysis!G16", fmt="0.000")
 
     ws.sheet_view.showGridLines = False
 
