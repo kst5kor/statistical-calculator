@@ -2265,7 +2265,7 @@ def default_characteristic_state(name="Characteristic 1"):
         "s": 0.015,
         "n_samples": 30,
         "decimal_places": 3,
-        "mode": "Enter Manually",
+        "mode": "Use Data Worksheet",
         "measurement_name": name,
         "description": "",
         "raw_data": "",
@@ -2612,7 +2612,7 @@ def run_characteristic_analysis(characteristic_name):
 
 def analyze_all_characteristics():
     # Propagate the global data input mode to all characteristics
-    global_mode = st.session_state.get("mode", "Enter Manually")
+    global_mode = st.session_state.get("mode", "Use Data Worksheet")
     summaries = []
     for name in st.session_state.characteristics:
         # Set each characteristic's mode to match the global setting
@@ -2701,7 +2701,7 @@ def apply_data_transformation(values, transform_type, **kwargs):
 
 # Set page configuration
 st.set_page_config(
-    page_title="Process Capability Analyzer",
+    page_title="Statistical Process Capability & Data Analytics",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={"Get Help": None, "Report a bug": None, "About": None},
@@ -2764,8 +2764,44 @@ st.markdown(
         color: #e2e8f0 !important;
     }
     
+    /* === PROFESSIONAL NAVIGATION BAR === */
+    .stTabs [data-baseweb="tab-list"] {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
+        border-radius: 12px !important;
+        padding: 6px 8px !important;
+        gap: 4px !important;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+        border: 1px solid rgba(255,255,255,0.08) !important;
+        margin-bottom: 1.25rem !important;
+    }
     .stTabs [data-baseweb="tab"] {
-        padding: 0.75rem 1rem !important;
+        padding: 0.65rem 1.25rem !important;
+        font-weight: 500 !important;
+        font-size: 0.92rem !important;
+        letter-spacing: 0.02em !important;
+        color: #94a3b8 !important;
+        border-radius: 8px !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        border: 1px solid transparent !important;
+        background: transparent !important;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        color: #e2e8f0 !important;
+        background: rgba(59, 130, 246, 0.12) !important;
+        border-color: rgba(59, 130, 246, 0.2) !important;
+    }
+    .stTabs [aria-selected="true"] {
+        color: #ffffff !important;
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
+        border-color: rgba(96, 165, 250, 0.3) !important;
+        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255,255,255,0.15) !important;
+        font-weight: 600 !important;
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none !important;
+    }
+    .stTabs [data-baseweb="tab-border"] {
+        display: none !important;
     }
     
     .stButton > button,
@@ -2805,7 +2841,7 @@ def init_session_state(clear_form=False):
         "s": 0.015,
         "n_samples": 30,
         "decimal_places": 3,
-        "mode": "Enter Manually",
+        "mode": "Use Data Worksheet",
         "measurement_name": "",
         "raw_data": "",
         "transform_dirty": False,
@@ -2864,7 +2900,7 @@ ensure_characteristics_state()
 sync_characteristic_state_machine()
 
 # --- Main App UI ---
-st.title("Statistical Process Capability & Optimization Tool")
+st.title("Statistical Process Capability & Data Analytics")
 
 # Define Tabs
 tab_analysis, tab_data, tab_viz, tab_history, tab_ref = st.tabs(
@@ -2939,7 +2975,7 @@ with tab_analysis:
             st.subheader("2. Data & Goals")
             st.radio(
                 "Data Input Mode",
-                ["Enter Manually", "Use Data Worksheet"],
+                ["Use Data Worksheet", "Enter Manually"],
                 key="mode",
                 horizontal=True,
             )
@@ -3454,74 +3490,113 @@ with tab_data:
         with upload_cols[2]:
             st.markdown("**Quick actions:**")
 
-            @st.cache_data
+
             def _make_template():
-                """Generate a pre-formatted .xlsx template with multiple characteristic columns."""
+                """Generate a pre-formatted .xlsx template with columns matching current characteristics."""
                 wb = Workbook()
                 ws = wb.active
-                ws.title = "Data"
+                ws.title = "SPC Data"
+
+                char_names = list(st.session_state.characteristics.keys())
+                n_chars = max(len(char_names), 2)  # At least 2 columns
+
+                # Column widths
                 ws.column_dimensions["A"].width = 8
                 ws.column_dimensions["B"].width = 28
-                ws.column_dimensions["C"].width = 18
-                ws.column_dimensions["D"].width = 18
+                for ci in range(n_chars):
+                    col_letter = get_column_letter(ci + 3)
+                    ws.column_dimensions[col_letter].width = 20
 
                 hdr_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
-                hdr_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
+                hdr_fill = PatternFill(start_color="0f172a", end_color="0f172a", fill_type="solid")
+                sub_hdr_fill = PatternFill(start_color="1e293b", end_color="1e293b", fill_type="solid")
+                sub_hdr_font = Font(name="Calibri", bold=True, size=10, color="94a3b8")
                 hdr_align = Alignment(horizontal="center", vertical="center")
                 thin_border = Border(
-                    left=Side(style="thin", color="D1D5DB"),
-                    right=Side(style="thin", color="D1D5DB"),
-                    top=Side(style="thin", color="D1D5DB"),
-                    bottom=Side(style="thin", color="D1D5DB"),
+                    left=Side(style="thin", color="334155"),
+                    right=Side(style="thin", color="334155"),
+                    top=Side(style="thin", color="334155"),
+                    bottom=Side(style="thin", color="334155"),
                 )
 
-                for col, header in [(1, "#"), (2, "DMC / Serial Number"), (3, "Measurement 1"), (4, "Measurement 2")]:
-                    c = ws.cell(row=1, column=col, value=header)
+                # --- Row 1: Main headers ---
+                headers = ["#", "DMC / Serial Number"]
+                for ci in range(n_chars):
+                    name = char_names[ci] if ci < len(char_names) else f"Measurement {ci + 1}"
+                    headers.append(name)
+                for col_idx, header in enumerate(headers, start=1):
+                    c = ws.cell(row=1, column=col_idx, value=header)
                     c.font = hdr_font
                     c.fill = hdr_fill
                     c.alignment = hdr_align
                     c.border = thin_border
 
-                sample = [
-                    ("DMC-2024-001", 10.005, 25.012), ("DMC-2024-002", 9.998, 24.995),
-                    ("DMC-2024-003", 10.012, 25.008), ("DMC-2024-004", 9.985, 25.022),
-                    ("DMC-2024-005", 10.008, 24.988), ("DMC-2024-006", 9.992, 25.015),
-                    ("DMC-2024-007", 10.015, 25.003), ("DMC-2024-008", 10.001, 24.997),
-                    ("DMC-2024-009", 9.990, 25.018), ("DMC-2024-010", 10.010, 25.001),
-                ]
+                # --- Row 2: Tolerance sub-header (Tm | LSL | USL) ---
+                tol_c1 = ws.cell(row=2, column=1, value="")
+                tol_c1.fill = sub_hdr_fill
+                tol_c1.border = thin_border
+                tol_c2 = ws.cell(row=2, column=2, value="Tolerances →")
+                tol_c2.font = sub_hdr_font
+                tol_c2.fill = sub_hdr_fill
+                tol_c2.alignment = hdr_align
+                tol_c2.border = thin_border
+                for ci in range(n_chars):
+                    char_state = {}
+                    if ci < len(char_names):
+                        char_state = st.session_state.characteristics.get(char_names[ci], {})
+                    tm = char_state.get("tm", 10.0)
+                    lsl = char_state.get("lsl", 9.9)
+                    usl = char_state.get("usl", 10.1)
+                    tol_text = f"Tm={tm} | LSL={lsl} | USL={usl}"
+                    tc = ws.cell(row=2, column=ci + 3, value=tol_text)
+                    tc.font = sub_hdr_font
+                    tc.fill = sub_hdr_fill
+                    tc.alignment = hdr_align
+                    tc.border = thin_border
+
+                # --- Sample data rows ---
+                sample_rng = np.random.default_rng(99)
                 input_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
                 alt_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
-                for i, (dmc, val1, val2) in enumerate(sample, start=1):
-                    r = i + 1
+                for i in range(1, 11):
+                    r = i + 2
                     ws.cell(row=r, column=1, value=i).border = thin_border
                     ws.cell(row=r, column=1).alignment = hdr_align
-                    ws.cell(row=r, column=2, value=dmc).border = thin_border
-                    ws.cell(row=r, column=3, value=val1).border = thin_border
-                    ws.cell(row=r, column=3).number_format = "0.0000"
-                    ws.cell(row=r, column=4, value=val2).border = thin_border
-                    ws.cell(row=r, column=4).number_format = "0.0000"
+                    ws.cell(row=r, column=2, value=f"DMC-2024-{i:03d}").border = thin_border
                     fill = alt_fill if i % 2 == 0 else input_fill
                     ws.cell(row=r, column=2).fill = fill
-                    ws.cell(row=r, column=3).fill = fill
-                    ws.cell(row=r, column=4).fill = fill
+                    for ci in range(n_chars):
+                        char_state = {}
+                        if ci < len(char_names):
+                            char_state = st.session_state.characteristics.get(char_names[ci], {})
+                        center = char_state.get("tm", 10.0)
+                        spread = (char_state.get("usl", center + 0.1) - char_state.get("lsl", center - 0.1)) / 6
+                        val = round(sample_rng.normal(center, max(spread, 0.01)), 4)
+                        cell = ws.cell(row=r, column=ci + 3, value=val)
+                        cell.border = thin_border
+                        cell.number_format = "0.0000"
+                        cell.fill = fill
 
-                for i in range(len(sample) + 1, 101):
-                    r = i + 1
+                # --- Empty rows up to 10,000 ---
+                for i in range(11, 10001):
+                    r = i + 2
                     ws.cell(row=r, column=1, value=i).border = thin_border
                     ws.cell(row=r, column=1).alignment = hdr_align
                     ws.cell(row=r, column=2).border = thin_border
-                    ws.cell(row=r, column=3).border = thin_border
-                    ws.cell(row=r, column=3).number_format = "0.0000"
-                    ws.cell(row=r, column=4).border = thin_border
-                    ws.cell(row=r, column=4).number_format = "0.0000"
                     fill = alt_fill if i % 2 == 0 else input_fill
                     ws.cell(row=r, column=2).fill = fill
-                    ws.cell(row=r, column=3).fill = fill
-                    ws.cell(row=r, column=4).fill = fill
+                    for ci in range(n_chars):
+                        cell = ws.cell(row=r, column=ci + 3)
+                        cell.border = thin_border
+                        cell.number_format = "0.0000"
+                        cell.fill = fill
 
-                ws.cell(row=103, column=2, value="💡 Replace sample data with your actual measurements.").font = Font(
+                note_row = 10004
+                ws.cell(row=note_row, column=2, value="💡 Replace sample data with your actual measurements.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
-                ws.cell(row=104, column=2, value="📤 Each numeric column becomes a separate characteristic.").font = Font(
+                ws.cell(row=note_row + 1, column=2, value="📤 Each numeric column becomes a separate characteristic.").font = Font(
+                    name="Calibri", size=9, italic=True, color="6B7280")
+                ws.cell(row=note_row + 2, column=2, value=f"📊 Template generated with {n_chars} characteristics, up to 10,000 DMC rows.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
 
                 buf = io.BytesIO()
