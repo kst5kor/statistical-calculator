@@ -281,12 +281,15 @@ class StatisticalCalculator:
         }
 
         if params["mode"] == "import":
-            data = self.parse_raw_data(inputs.get("raw_data", ""))
+            # Accept pre-parsed data to avoid expensive string→parse round-trip
+            pre_parsed = inputs.get("_pre_parsed_data")
+            data = pre_parsed if pre_parsed is not None else self.parse_raw_data(inputs.get("raw_data", ""))
             params["importedData"] = data
             if len(data) >= 2:
+                data_arr = np.asarray(data, dtype=float)
                 params["n_samples"] = len(data)
-                params["x_bar"] = np.mean(data)
-                params["s"] = np.std(data, ddof=1) if len(data) > 1 else 0
+                params["x_bar"] = float(np.mean(data_arr))
+                params["s"] = float(np.std(data_arr, ddof=1))
             else:
                 params["n_samples"] = len(data)
                 params["x_bar"] = np.nan
@@ -425,15 +428,11 @@ class PlotManager:
         x = np.linspace(x_min, x_max, points)
         y = np.zeros_like(x)
 
-        calc = StatisticalCalculator()
-
+        # Use vectorized scipy.stats for ~100x faster PDF generation
         if dist_type == "Normal" and params.get("stdDev", 0) > 0:
-            y = [calc.Normal().pdf(val, params["mean"], params["stdDev"]) for val in x]
+            y = stats.norm.pdf(x, loc=params["mean"], scale=params["stdDev"])
         elif dist_type == "Lognormal" and params.get("sigma_log", 0) > 0:
-            y = [
-                calc.Lognormal().pdf(val, params["mu_log"], params["sigma_log"])
-                for val in x
-            ]
+            y = stats.lognorm.pdf(x, s=params["sigma_log"], scale=np.exp(params["mu_log"]))
 
         return x, np.nan_to_num(y)
 
@@ -2336,15 +2335,16 @@ def sync_characteristic_from_global(name):
     state["measurement_name"] = sanitize_characteristic_name(
         st.session_state.get("measurement_name", name)
     ) or name
-    state["results"] = dict(st.session_state.get("results", {}))
-    state["summary"] = dict(st.session_state.get("summary", {}))
-    state["figs"] = dict(st.session_state.get("figs", {}))
+    state["results"] = st.session_state.get("results", {})
+    state["summary"] = st.session_state.get("summary", {})
+    state["figs"] = st.session_state.get("figs", {})
+    # Use reference — avoid expensive DataFrame.copy() on every sync
     worksheet = st.session_state.get("worksheet_data")
     if isinstance(worksheet, pd.DataFrame):
-        state["worksheet_data"] = worksheet.copy()
+        state["worksheet_data"] = worksheet
     original = st.session_state.get("original_worksheet_data")
     if isinstance(original, pd.DataFrame):
-        state["original_worksheet_data"] = original.copy()
+        state["original_worksheet_data"] = original
 
 
 def sync_global_from_characteristic(name):
@@ -2362,19 +2362,20 @@ def sync_global_from_characteristic(name):
         st.session_state.measurement_name = state.get("measurement_name", name)
     except Exception:
         pass
-    st.session_state.results = dict(state.get("results", {}))
-    st.session_state.summary = dict(state.get("summary", {}))
-    st.session_state.figs = dict(state.get("figs", {}))
+    # Use reference — avoid expensive DataFrame.copy() on every sync
+    st.session_state.results = state.get("results", {})
+    st.session_state.summary = state.get("summary", {})
+    st.session_state.figs = state.get("figs", {})
     ws = state.get("worksheet_data")
     if isinstance(ws, pd.DataFrame):
-        st.session_state.worksheet_data = ws.copy()
+        st.session_state.worksheet_data = ws
     else:
         st.session_state.worksheet_data = pd.DataFrame({"Value": [None] * 20})
     ows = state.get("original_worksheet_data", st.session_state.worksheet_data)
     if isinstance(ows, pd.DataFrame):
-        st.session_state.original_worksheet_data = ows.copy()
+        st.session_state.original_worksheet_data = ows
     else:
-        st.session_state.original_worksheet_data = st.session_state.worksheet_data.copy()
+        st.session_state.original_worksheet_data = st.session_state.worksheet_data
 
 
 
@@ -2577,16 +2578,19 @@ def save_characteristic_metadata(metadata_df):
 
 def run_characteristic_analysis(characteristic_name):
     state = st.session_state.characteristics[characteristic_name]
-    analysis_inputs = dict(state)
+    # Build minimal inputs dict — avoid copying large DataFrames
+    analysis_inputs = {k: v for k, v in state.items()
+                       if k not in ("worksheet_data", "original_worksheet_data", "results", "summary", "figs")}
     worksheet_values = []
     if state.get("mode") == "Use Data Worksheet":
         worksheet = state.get("worksheet_data")
         if isinstance(worksheet, pd.DataFrame) and "Value" in worksheet.columns:
-            worksheet_values = [
-                float(v) for v in worksheet["Value"].dropna().tolist()
-                if calc.is_numeric(v)
-            ]
-        analysis_inputs["raw_data"] = ", ".join(map(str, worksheet_values))
+            # Use pandas vectorized conversion — much faster than per-element checks
+            numeric_series = pd.to_numeric(worksheet["Value"], errors="coerce").dropna()
+            worksheet_values = numeric_series.tolist()
+        # Pass pre-parsed data directly — skip expensive string join+reparse
+        analysis_inputs["_pre_parsed_data"] = worksheet_values
+        analysis_inputs["raw_data"] = ""  # Placeholder, not used when _pre_parsed_data exists
         analysis_inputs["mode"] = "import"
     else:
         analysis_inputs["mode"] = "manual"
@@ -3577,8 +3581,8 @@ with tab_data:
                         cell.number_format = "0.0000"
                         cell.fill = fill
 
-                # --- Empty rows up to 10,000 ---
-                for i in range(11, 10001):
+                # --- Empty rows up to 500 (users enter data in-app, not template) ---
+                for i in range(11, 501):
                     r = i + 2
                     ws.cell(row=r, column=1, value=i).border = thin_border
                     ws.cell(row=r, column=1).alignment = hdr_align
@@ -3591,12 +3595,12 @@ with tab_data:
                         cell.number_format = "0.0000"
                         cell.fill = fill
 
-                note_row = 10004
+                note_row = 504
                 ws.cell(row=note_row, column=2, value="💡 Replace sample data with your actual measurements.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
                 ws.cell(row=note_row + 1, column=2, value="📤 Each numeric column becomes a separate characteristic.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
-                ws.cell(row=note_row + 2, column=2, value=f"📊 Template generated with {n_chars} characteristics, up to 10,000 DMC rows.").font = Font(
+                ws.cell(row=note_row + 2, column=2, value=f"📊 Template generated with {n_chars} characteristics, 500 pre-formatted rows.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
 
                 buf = io.BytesIO()
