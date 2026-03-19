@@ -13,6 +13,61 @@ from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 from openpyxl.utils import get_column_letter
 
 
+THEME_PRESETS = {
+    "Midnight": {
+        "page_bg": "#0b1220",
+        "panel_bg": "#111827",
+        "panel_alt": "#172033",
+        "text": "#e5eefb",
+        "muted": "#94a3b8",
+        "accent": "#3b82f6",
+        "accent_2": "#06b6d4",
+        "tab_text": "#a8b4c8",
+        "metric_bg": "#182235",
+        "card_bg": "rgba(15, 23, 42, 0.42)",
+        "border": "rgba(148, 163, 184, 0.18)",
+        "header_grad": "linear-gradient(135deg, #0f172a 0%, #16233a 55%, #0b1220 100%)",
+        "tab_grad": "linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+        "tab_active": "linear-gradient(135deg, #2563eb 0%, #06b6d4 100%)",
+        "title_grad": "linear-gradient(135deg, #f8fbff 0%, #93c5fd 60%, #67e8f9 100%)",
+    },
+    "Graphite": {
+        "page_bg": "#101215",
+        "panel_bg": "#181c20",
+        "panel_alt": "#222831",
+        "text": "#f3f4f6",
+        "muted": "#a1a1aa",
+        "accent": "#f97316",
+        "accent_2": "#fb7185",
+        "tab_text": "#c4c9d4",
+        "metric_bg": "#242a31",
+        "card_bg": "rgba(36, 42, 49, 0.55)",
+        "border": "rgba(255, 255, 255, 0.10)",
+        "header_grad": "linear-gradient(135deg, #17191d 0%, #2b3139 55%, #14171b 100%)",
+        "tab_grad": "linear-gradient(135deg, #1b1e23 0%, #2b3139 55%, #1a1d21 100%)",
+        "tab_active": "linear-gradient(135deg, #f97316 0%, #fb7185 100%)",
+        "title_grad": "linear-gradient(135deg, #fff7ed 0%, #fdba74 55%, #fda4af 100%)",
+    },
+    "Light": {
+        "page_bg": "#f3f7fb",
+        "panel_bg": "#ffffff",
+        "panel_alt": "#dce8f5",
+        "text": "#0f172a",
+        "muted": "#334155",
+        "accent": "#2563eb",
+        "accent_2": "#0891b2",
+        "tab_text": "#334155",
+        "metric_bg": "#eef4fb",
+        "card_bg": "rgba(255, 255, 255, 0.98)",
+        "border": "rgba(15, 23, 42, 0.16)",
+        "header_grad": "linear-gradient(135deg, #ffffff 0%, #e6eefb 55%, #e0f2fe 100%)",
+        "tab_grad": "linear-gradient(135deg, #ffffff 0%, #dbe7f4 55%, #f3f7fb 100%)",
+        "tab_active": "linear-gradient(135deg, #2563eb 0%, #0891b2 100%)",
+        "title_grad": "linear-gradient(135deg, #0f172a 0%, #1d4ed8 60%, #0891b2 100%)",
+    },
+}
+
+
 # --- Statistical Calculator Logic ---
 # Ported from the 'statisticalCalculator' JavaScript object
 class StatisticalCalculator:
@@ -549,7 +604,7 @@ class PlotManager:
                 max_pdf_y = max(valid_y) * 1.1
 
         # Theme-adaptive font color (readable in both light and dark mode)
-        _fc = "#8b95a5"
+        _fc = _plot_font
         layout_defaults = {
             "xaxis": {
                 "title": {"text": "Measurement Value", "font": {"color": _fc, "size": 11}},
@@ -557,8 +612,8 @@ class PlotManager:
                 "zeroline": False,
                 "tickformat": f".{dp}f",
                 "tickfont": {"size": 10, "color": _fc},
-                "gridcolor": "rgba(128,128,128,0.15)",
-                "linecolor": "rgba(128,128,128,0.25)",
+                "gridcolor": _plot_grid,
+                "linecolor": _plot_line,
                 "showspikes": True,
                 "spikemode": "across",
                 "spikesnap": "cursor",
@@ -573,8 +628,8 @@ class PlotManager:
                 "range": [0, max_pdf_y],
                 "tickfont": {"size": 10, "color": _fc},
                 "showticklabels": bool(s > 0),
-                "gridcolor": "rgba(128,128,128,0.15)",
-                "linecolor": "rgba(128,128,128,0.25)",
+                "gridcolor": _plot_grid,
+                "linecolor": _plot_line,
                 "showspikes": True,
                 "spikemode": "across",
                 "spikesnap": "cursor",
@@ -590,8 +645,8 @@ class PlotManager:
                 "y": -0.22,
                 "x": 0.5,
                 "xanchor": "center",
-                "bgcolor": "rgba(128,128,128,0.08)",
-                "bordercolor": "rgba(128,128,128,0.2)",
+                "bgcolor": _plot_legend_bg,
+                "bordercolor": _plot_line,
                 "borderwidth": 1,
                 "font": {"size": 10, "color": _fc},
             },
@@ -599,9 +654,9 @@ class PlotManager:
             "hoverlabel": {
                 "font_size": 11,
                 "namelength": -1,
-                "bgcolor": "rgba(30,41,59,0.92)",
-                "font_color": "#e2e8f0",
-                "bordercolor": "rgba(128,128,128,0.3)",
+                "bgcolor": _plot_hover_bg,
+                "font_color": _plot_hover_text,
+                "bordercolor": _plot_line,
             },
             "dragmode": "zoom",
             "modebar": {
@@ -936,15 +991,15 @@ class PlotManager:
                     "range": [x_min, x_max],
                     "zeroline": False,
                     "tickfont": {"size": 10, "color": _fc},
-                    "gridcolor": "rgba(128,128,128,0.15)",
-                    "linecolor": "rgba(128,128,128,0.25)",
+                    "gridcolor": _plot_grid,
+                    "linecolor": _plot_line,
                 },
                 yaxis={
                     "title": {"text": "Frequency (Count)", "font": {"color": _fc, "size": 11}},
                     "fixedrange": True,
                     "tickfont": {"size": 10, "color": _fc},
-                    "gridcolor": "rgba(128,128,128,0.15)",
-                    "linecolor": "rgba(128,128,128,0.25)",
+                    "gridcolor": _plot_grid,
+                    "linecolor": _plot_line,
                 },
                 height=380,
                 bargap=0.05,
@@ -957,8 +1012,8 @@ class PlotManager:
                     "y": -0.22,
                     "x": 0.5,
                     "xanchor": "center",
-                    "bgcolor": "rgba(128,128,128,0.08)",
-                    "bordercolor": "rgba(128,128,128,0.2)",
+                    "bgcolor": _plot_legend_bg,
+                    "bordercolor": _plot_line,
                     "borderwidth": 1,
                     "font": {"size": 10, "color": _fc},
                 },
@@ -966,9 +1021,9 @@ class PlotManager:
                 hoverlabel={
                     "font_size": 11,
                     "namelength": -1,
-                    "bgcolor": "rgba(30,41,59,0.92)",
-                    "font_color": "#e2e8f0",
-                    "bordercolor": "rgba(128,128,128,0.3)",
+                    "bgcolor": _plot_hover_bg,
+                    "font_color": _plot_hover_text,
+                    "bordercolor": _plot_line,
                 },
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
@@ -1884,6 +1939,41 @@ class SigmaAssistant:
 
         msg = message if message else cls.STATE_MESSAGES.get(state)
         color = cls.STATE_COLORS.get(state, "#3B82F6")
+        # Assuming st, _is_light_theme, _theme_lookup, _theme_from_query are defined elsewhere in the Streamlit app context
+        # This block is placed here as per the user's instruction, but typically would be in the main app logic.
+        import streamlit as st # Added for context, assuming it's imported at the top of the actual script
+        
+        # Placeholder for theme variables, assuming they are defined in the Streamlit app's main scope
+        _is_light_theme = st.session_state.get("ui_theme", "Midnight") == "Light"
+        _theme_lookup = {"Light": "Light", "Dark": "Dark", "Midnight": "Midnight"} # Example lookup
+        _theme_from_query = "Midnight" # Example value
+
+        with st.sidebar:
+            st.markdown('<div class="app-shell">', unsafe_allow_html=True)
+            st.markdown(
+                '<h1 class="app-shell-title">Sigma Assistant</h1>'
+                '<p class="app-shell-subtitle">v2.1 • Statistical Process Capability</p>',
+                unsafe_allow_html=True,
+            )
+
+            if _is_light_theme:
+                st.warning(
+                    "**Light Theme Notice**\n\n"
+                    "If tables or inputs have invisible white text, please go to the **top-right menu (⋮) -> Settings -> Theme** and change it to **Light** to match."
+                )
+
+            st.markdown(
+                f'<div class="theme-chip">🎨 {_theme_lookup.get(_theme_from_query, st.session_state.get("ui_theme", "Midnight"))} Theme</div>',
+                unsafe_allow_html=True,
+            )
+        
+        theme_name = st.session_state.get("ui_theme", "Midnight")
+        is_light = theme_name == "Light"
+        bubble_bg = "#ffffff" if is_light else "#1F2937"
+        bubble_text = "#0f172a" if is_light else "#ffffff"
+        bubble_border = "rgba(15, 23, 42, 0.16)" if is_light else "rgba(148, 163, 184, 0.18)"
+        mascot_fill = "#ffffff" if is_light else "#F9FAFB"
+        shadow_rgba = "rgba(15,23,42,0.14)" if is_light else "rgba(0,0,0,0.25)"
 
         # Animation name based on state
         animation_map = {
@@ -1934,14 +2024,15 @@ class SigmaAssistant:
 }}
 
 .sigma-speech-bubble {{
-    background-color: #1F2937;
-    color: white;
+    background-color: {bubble_bg};
+    color: {bubble_text};
     padding: 10px 14px;
     border-radius: 10px;
     margin-bottom: 8px;
     max-width: 200px;
     font-size: 0.8rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    border: 1px solid {bubble_border};
+    box-shadow: 0 4px 12px {shadow_rgba};
     text-align: center;
     line-height: 1.4;
 }}
@@ -1954,7 +2045,7 @@ class SigmaAssistant:
 }}
 
 .sigma-mascot svg {{
-    filter: drop-shadow(2px 3px 3px rgba(0, 0, 0, 0.2));
+    filter: drop-shadow(2px 3px 3px {shadow_rgba});
 }}
 
 /* Animations */
@@ -1998,7 +2089,7 @@ class SigmaAssistant:
             <ellipse cx="55" cy="115" rx="35" ry="8" fill="black" opacity="0.15" filter="url(#sigma-shadow)"/>
             <!-- Body -->
             <path d="M 20 110 C 20 110, 5 20, 55 20 C 105 20, 90 110, 90 110 Z" 
-                  fill="#F9FAFB" stroke="{color}" stroke-width="4" stroke-linejoin="round"/>
+                  fill="{mascot_fill}" stroke="{color}" stroke-width="4" stroke-linejoin="round"/>
             <!-- Face -->
             <g transform="translate(0, -10)">
                 <!-- Eyebrows -->
@@ -2028,6 +2119,67 @@ class SigmaAssistant:
 '''
         return html
 
+def generate_full_report_excel(characteristics):
+    from openpyxl.drawing.image import Image as OpenpyxlImage
+    from openpyxl.styles import Font, Alignment
+    
+    output = io.BytesIO()
+    wb = Workbook()
+    wb.remove(wb.active)  # Remove default sheet
+    
+    for char_name, char_data in characteristics.items():
+        ws = wb.create_sheet(title=str(char_name)[:31])  # Excel sheet names max 31 chars
+        
+        # Title
+        ws.merge_cells("A1:G1")
+        title_cell = ws.cell(row=1, column=1, value=f"Statistical Analysis Report: {char_name}")
+        title_cell.font = Font(bold=True, size=16, color="1F2937")
+        title_cell.alignment = Alignment(horizontal="center", vertical="center")
+        
+        # Statistics
+        row_idx = 3
+        ws.cell(row=row_idx, column=1, value="Metric").font = Font(bold=True)
+        ws.cell(row=row_idx, column=2, value="Value").font = Font(bold=True)
+        row_idx += 1
+        
+        res = char_data.get("results", {})
+        for key, val in res.items():
+            if isinstance(val, (int, float, str)) and key not in ["histogram_data", "figs", "id"]:
+                ws.cell(row=row_idx, column=1, value=str(key))
+                if isinstance(val, float) and np.isfinite(val):
+                    ws.cell(row=row_idx, column=2, value=round(val, 4))
+                else:
+                    ws.cell(row=row_idx, column=2, value=str(val))
+                row_idx += 1
+                
+        # Auto-fit columns
+        ws.column_dimensions['A'].width = 25
+        ws.column_dimensions['B'].width = 20
+        ws.column_dimensions['C'].width = 5
+        
+        # Charts
+        chart_start_row = 3
+        chart_col = "D"
+        figs = char_data.get("figs", {})
+        
+        for fig_key in ["before", "after", "hist"]:
+            fig = figs.get(fig_key)
+            if fig:
+                try:
+                    # Kaleido package is required for to_image
+                    img_bytes = fig.to_image(format="png", width=700, height=400, scale=1.5)
+                    img = OpenpyxlImage(io.BytesIO(img_bytes))
+                    ws.add_image(img, f"{chart_col}{chart_start_row}")
+                    chart_start_row += 22  # Move down ~22 rows for next chart
+                except Exception as e:
+                    pass
+            
+    if len(wb.sheetnames) == 0:
+        wb.create_sheet("Empty Report")
+        
+    wb.save(output)
+    return output.getvalue()
+
 
 # --- Chatbot Logic ---
 # Ported from 'sigmaAssistant'
@@ -2035,146 +2187,81 @@ class Chatbot:
     def __init__(self):
         # Prepare reference content
         self.reference_content_sections = self._prepare_reference_content()
-        self.common_words = set(
-            [
-                "a",
-                "an",
-                "the",
-                "is",
-                "are",
-                "what",
-                "how",
-                "when",
-                "where",
-                "for",
-                "to",
-                "of",
-                "in",
-                "and",
-                "or",
-                "do",
-                "does",
-                "can",
-                "explain",
-                "tell",
-                "me",
-                "about",
-            ]
-        )
+        self.common_words = set(["a", "an", "the", "is", "are", "what", "how", "when", "where", "for", "to", "of", "in", "and", "or", "do", "does", "can", "explain", "tell", "me", "about"])
 
     def _prepare_reference_content(self):
         raw_sections = [
             # --- Application Context ---
             {"context": "Application Context", "text": "This tool is used in Six Sigma and SPC environments for Process Centering and Tolerance Verification. It helps engineers quantify process drift, predict initial settings, and verify tolerance adequacy."},
             {"context": "Application Context", "text": "Quantify Process Drift: Calculate the exact Required Shift (Δ) = Tₘ − x̄ to move the measured process mean back to the engineering target."},
-            {"context": "Application Context", "text": "Predict Initial State: Infer the required initial dimension/setting to achieve the target (Tₘ) after process variables exert their influence."},
-            {"context": "Application Context", "text": "Verify Tolerance Adequacy: Determine the minimum Required Tolerance (USL − LSL) for the existing process variation (σ) to meet a desired Cpk/Ppk."},
-
-            # --- Step-by-Step Workflow ---
-            {"context": "How to Use This Tool", "text": "Step 1: Go to 'Data Worksheet' tab. Enter measurement label, description, Tₘ (Target Mean), LSL (Lower Spec Limit), and USL (Upper Spec Limit)."},
-            {"context": "How to Use This Tool", "text": "Step 2: Enter data — type DMC/serial + measured values directly in the worksheet grid, or upload a CSV/Excel file, or click 'Sample Data' for 1000 test points."},
-            {"context": "How to Use This Tool", "text": "Step 3: Go to 'Analysis & Report' tab. Select 'Use Data Worksheet' mode, then click 'ANALYZE & PLOT' to run the statistical analysis."},
-            {"context": "How to Use This Tool", "text": "Step 4: Review results in the 'Visualization' tab — histogram, box plot, capability curves, I-Chart, MR-Chart, and statistics summary."},
-            {"context": "How to Use This Tool", "text": "Step 5: Check the 'History' tab to compare with previous runs. Export results as Excel for reports."},
-            {"context": "How to Use This Tool", "text": "You can download a pre-formatted Excel template using the '📥 Download Template' button in the Data Worksheet tab. Fill it in Excel and upload it back to avoid formatting issues."},
-            {"context": "How to Use This Tool", "text": "Data Worksheet supports up to 1000 data rows. The capacity indicator shows how many rows are used."},
-
-            # --- Capability Indices ---
-            {"context": "Capability Indices (Cp/Cpk)", "text": "Cp = (USL − LSL) / 6σ measures POTENTIAL capability — how well the process COULD perform if perfectly centered. A higher Cp means the tolerance band is wider relative to process spread."},
-            {"context": "Capability Indices (Cp/Cpk)", "text": "Cpk = min[(USL − x̄) / 3σ, (x̄ − LSL) / 3σ] measures ACTUAL capability with real centering included. Cpk ≤ Cp always. If Cpk = Cp, the process is perfectly centered."},
-            {"context": "Capability Indices (Cp/Cpk)", "text": "Cpk interpretation: Cpk < 1.0 = NOT capable (process spread exceeds tolerance). Cpk 1.0–1.33 = Marginally capable. Cpk 1.33–1.67 = Capable. Cpk ≥ 1.67 = Highly capable. Cpk ≥ 2.0 = Six Sigma level."},
-            {"context": "Capability Indices (Cp/Cpk)", "text": "Automotive industry (IATF 16949) typically requires Cpk ≥ 1.33 for ongoing production and Cpk ≥ 1.67 for new processes or critical characteristics."},
-            {"context": "Capability Indices (Cp/Cpk)", "text": "If Cp is high but Cpk is low, the process is capable but not centered — you need to shift the mean toward the target. The Required Shift (Δ) tells you exactly how much."},
-            {"context": "Capability Indices (Cp/Cpk)", "text": "Pp = (USL − LSL) / 6σ_overall and Ppk = min[(USL − x̄) / 3σ_overall, (x̄ − LSL) / 3σ_overall] use OVERALL (long-term) standard deviation including between-subgroup variation. Ppk ≤ Cpk always."},
+            
+            # --- Capability Indices (Cp/Cpk) Deep Dive ---
+            {"context": "Process Capability (Cp)", "text": "### Cp (Process Capability Potential)\n\n$Cp = \\frac{USL - LSL}{6\\sigma}$\n\nCp measures the **potential** capability of a process if it were perfectly centered between the specification limits. It compares the allowable spread (tolerance) to the actual process spread ($6\\sigma$).\n\n*   **Cp < 1.0**: The process variation is wider than the tolerance. It is incapable even if perfectly centered.\n*   **Cp = 1.0**: The process spread exactly matches the tolerance. (Marginal)\n*   **Cp ≥ 1.33**: The process is generally considered capable (industry standard).\n*   **Cp ≥ 2.0**: The process has Six Sigma capability potential."},
+            {"context": "Process Capability (Cpk)", "text": "### Cpk (Actual Process Capability)\n\n$Cpk = \\min\\left(\\frac{USL - \\bar{x}}{3\\sigma}, \\frac{\\bar{x} - LSL}{3\\sigma}\\right)$\n\nCpk measures the **actual** capability of the process, accounting for both the spread and the centering (mean shift). It is always the worst-case scenario (closest spec limit).\n\n*   **Cpk < 1.0**: Not capable. Process is producing defects outside specification.\n*   **1.0 ≤ Cpk < 1.33**: Marginally capable.\n*   **Cpk ≥ 1.33**: Capable (Typical minimum for ongoing production).\n*   **Cpk ≥ 1.67**: Highly capable (Safety critical or new processes).\n\n**Note:** If $Cpk < Cp$, your process is off-center. You can improve Cpk without reducing variation simply by shifting the mean closer to the target (Tₘ)."},
+            {"context": "Process Performance (Pp & Ppk)", "text": "### Pp and Ppk\n\nWhile Cp/Cpk use **short-term** estimated standard deviation (often pooled or from $R$-bar/d₂), **Pp and Ppk** use the **overall (long-term)** standard deviation across all data points ($s$).\n\nUse Pp/Ppk to understand the true long-term performance delivered to the customer, including all shifts and drifts over time."},
 
             # --- Control Charts ---
-            {"context": "Control Charts (I-MR)", "text": "The I-Chart (Individuals Chart) plots each measured value in sequence. The center line (CL) is x̄, UCL = x̄ + 3σ, LCL = x̄ − 3σ. Points outside UCL/LCL indicate the process is out of statistical control."},
-            {"context": "Control Charts (I-MR)", "text": "The MR-Chart (Moving Range) plots |Xᵢ − Xᵢ₋₁| — the absolute difference between consecutive measurements. MR̄ is the average moving range, MR UCL = 3.267 × MR̄ (D4 constant for n=2). No LCL for MR chart."},
-            {"context": "Control Charts (I-MR)", "text": "Use the 'Show Points' filter (10/25/50/100/250/500/All) to control how many data points are displayed on the control charts. This helps focus on recent data or see the full picture."},
-            {"context": "Control Charts (I-MR)", "text": "Zone A is between ±2σ and ±3σ (~4.28% of data). Zone B is between ±1σ and ±2σ (~27.18% of data). Zone C is within ±1σ (~68.27% of data). The percentages assume a normal distribution."},
-            {"context": "Control Charts (I-MR)", "text": "Warning limits (±2σ) are shown as amber dotted lines. These are optional — toggle them with the 'Show Warning Limits (±2σ)' checkbox. Points between 2σ and 3σ are early warnings of potential issues."},
-            {"context": "Control Charts (I-MR)", "text": "±1σ zone lines (purple) are available in the legend — click their name in the legend to toggle visibility on the I-Chart."},
-            {"context": "Control Charts (I-MR)", "text": "LSL, USL, and Target Mean are displayed on the I-Chart as green dash-dot and purple long-dash lines respectively, if specification limits are set."},
-
-            # --- Western Electric Rules ---
-            {"context": "Western Electric Rules", "text": "Rule 1: Any single point beyond ±3σ (UCL or LCL) = Out of Control. This is the most basic rule and is always checked."},
-            {"context": "Western Electric Rules", "text": "Rule 2: Two out of three consecutive points beyond ±2σ on the same side = Warning signal of a process shift."},
-            {"context": "Western Electric Rules", "text": "Rule 3: Four out of five consecutive points beyond ±1σ on the same side = Developing trend."},
-            {"context": "Western Electric Rules", "text": "Rule 4: Eight or more consecutive points on the same side of the center line = Process shift (mean has moved)."},
-            {"context": "Western Electric Rules", "text": "Rule 5: Six consecutive points steadily increasing or decreasing = Trend (tool wear, drift, temperature change)."},
-
-            # --- Standard Deviation ---
-            {"context": "Standard Deviation (σ)", "text": "σ (sigma) measures process variation — the spread of measured values around the mean. Calculated as STDEV.S (sample standard deviation with n−1 degrees of freedom)."},
-            {"context": "Standard Deviation (σ)", "text": "6σ Spread contains 99.73% of all data in a normal distribution. 8σ Spread (±4σ) contains 99.9937%. These define the natural process limits."},
-            {"context": "Standard Deviation (σ)", "text": "To reduce σ, investigate and control sources of variation: machine vibration, tool wear, material inconsistency, temperature fluctuations, operator technique."},
-            {"context": "Standard Deviation (σ)", "text": "The relationship between σ and PPM: at ±3σ = 2,700 PPM defective. At ±4σ = 63 PPM. At ±5σ = 0.57 PPM. At ±6σ = 0.002 PPM (3.4 with 1.5σ shift)."},
-
-            # --- PPM & Sigma Level ---
-            {"context": "PPM & Sigma Level", "text": "PPM (Parts Per Million) is the defect rate. PPM = P(defect) × 1,000,000. For example, 0.1% defect rate = 1,000 PPM."},
-            {"context": "PPM & Sigma Level", "text": "Sigma level table: 1σ = 691,462 PPM. 2σ = 308,538 PPM. 3σ = 66,807 PPM. 4σ = 6,210 PPM. 5σ = 233 PPM. 6σ = 3.4 PPM (with 1.5σ shift)."},
-            {"context": "PPM & Sigma Level", "text": "PPM below LSL means parts that are too small/thin/weak. PPM above USL means parts that are too large/thick. Both come from the tail probabilities of the normal distribution."},
+            {"context": "Control Charts Overview", "text": "### I-MR Control Charts\n\nThe **Individuals and Moving Range (I-MR)** chart tracks continuous data when subgroup size $n=1$.\n\n*   **I-Chart (Individuals):** Plots individual observations. The Center Line (CL) is the overall average $\\bar{x}$. Control limits are $\\bar{x} \\pm 3\\sigma$.\n*   **MR-Chart (Moving Range):** Plots the absolute difference between consecutive points $|x_i - x_{i-1}|$. It tracks process variation over time. The MR upper limit is $D_4 \\times \\overline{MR}$ (where $D_4 = 3.267$ for $n=2$)."},
+            
+            # --- Western Electric / Nelson Rules ---
+            {"context": "SPC Rules (Out of Control)", "text": "### Out of Control Rules\n\nThis app checks for specific patterns indicating non-random (special cause) variation:\n\n1.  **Rule 1 (1 point > 3σ):** Any single point falls outside the Upper or Lower Control Limit (UCL/LCL). Indicates an immediate spike or failure.\n2.  **Rule 2 (2 of 3 > 2σ):** Two out of three consecutive points fall beyond the 2σ warning limit on the same side of the mean. Indicates a process shift is developing.\n3.  **Rule 3 (4 of 5 > 1σ):** Four out of five consecutive points fall beyond 1σ on the same side. Shows a steady drift.\n4.  **Rule 4 (8+ points on one side):** Eight consecutive points fall entirely on one side of the center line. Indicates a sustained shift in the process mean.\n5.  **Rule 5 (6 points trending):** Six consecutive points are steadily increasing or strictly decreasing. Indicates a constant trend (e.g., tool wear, thermal drift)."},
+            
+            # --- Troubleshooting & Actions ---
+            {"context": "Troubleshooting (Low Cpk)", "text": "### What to do if Cpk is low?\n\n1.  **Check Cp vs Cpk:** If Cp is high (e.g., > 1.33) but Cpk is low (e.g., < 1.0), your variation is fine, but the process is not centered. **Action:** Adjust your machine offset or tooling to shift the mean by the `Required Shift (Δ)`.\n2.  **If Cp is also low:** The process variation is simply too large for the tolerance. Centering won't fix it. **Action:** You must reduce variation (investigate machine vibration, raw material changes, operator inconsistency) or ask engineering to widen the tolerance (`Required Tolerance`).\n3.  **Check Control Charts:** Is the process stable? If the I-Chart shows a massive trend or out-of-control points, Cpk is meaningless. Fix the stability issue first."},
 
             # --- Hypothesis Testing ---
-            {"context": "Hypothesis Testing", "text": "Z-test determines if the process mean (μ) is statistically different from Target Mean (Tₘ). Z = (x̄ − Tₘ) / (σ / √n). Large |Z| = significant shift."},
-            {"context": "Hypothesis Testing", "text": "Null Hypothesis (H₀): μ = Tₘ (process is on target). Alternative Hypothesis (H₁): μ ≠ Tₘ (two-sided), μ > Tₘ (upper), or μ < Tₘ (lower)."},
-            {"context": "Hypothesis Testing", "text": "p-value < 0.05 → Reject H₀ (significant evidence the mean has shifted). p-value ≥ 0.05 → Fail to Reject H₀ (no significant evidence of shift)."},
-            {"context": "Hypothesis Testing", "text": "Two-Sided test: Use when deviations in BOTH directions are concerning (e.g., diameter must be exactly Tₘ). Upper-Sided: concern is mean ABOVE target. Lower-Sided: concern is mean BELOW target."},
-            {"context": "Hypothesis Testing", "text": "Confidence Level = 1 − α. At 95% confidence (α = 0.05), if p < 0.05 you reject H₀. At 99% confidence (α = 0.01), you need p < 0.01 to reject."},
-
-            # --- Distribution ---
-            {"context": "Distribution", "text": "Normal distribution is the default assumption for most machining processes (turning, grinding, milling, stamping, injection molding) when the process is stable."},
-            {"context": "Distribution", "text": "Lognormal distribution applies when values are always positive and right-skewed (e.g., surface roughness, concentricity, contamination levels). Log-transform the data and check normality."},
-            {"context": "Distribution", "text": "A skewness near 0 and kurtosis near 0 (excess) indicate a distribution close to normal. High positive skewness suggests lognormal may fit better."},
-
-            # --- Additional Metrics ---
-            {"context": "Additional Metrics", "text": "x̄ ± 4σ Spread contains ~99.9937% of process output — a conservative view. x̄ ± 3σ Spread (99.73%) is the standard for control limits."},
-            {"context": "Additional Metrics", "text": "P(x < LSL) and P(x > USL) are the tail probabilities from the normal CDF. They represent the fraction of parts expected to fall outside specifications."},
-            {"context": "Additional Metrics", "text": "P(x < Tₘ) should be 50% for a perfectly centered process. Values far from 50% indicate the process mean is shifted from target."},
-            {"context": "Additional Metrics", "text": "Required Shift (Δ) = Tₘ − x̄. Positive Δ means increase the mean (parts are too small). Negative Δ means decrease the mean (parts are too large)."},
-            {"context": "Additional Metrics", "text": "Required Tolerance = Target Index × 6σ. This tells you the minimum tolerance band needed for the current process variation to meet your capability target."},
-
-            # --- Troubleshooting ---
-            {"context": "Troubleshooting", "text": "If Cpk is low but Cp is good: Your process spread is fine but the mean is off-center. Apply the Required Shift (Δ) to recenter."},
-            {"context": "Troubleshooting", "text": "If both Cp and Cpk are low: Process variation is too high. Investigate sources of variation — machine condition, material, tooling, environment."},
-            {"context": "Troubleshooting", "text": "If control chart shows trends or runs: Process is drifting. Check tool wear, temperature drift, material batch changes. Implement SPC monitoring."},
-            {"context": "Troubleshooting", "text": "If many points are outside control limits: The process is unstable. Do NOT calculate capability indices until the process is in statistical control first."},
-            {"context": "Troubleshooting", "text": "If data is not normal: Check skewness and kurtosis. Consider lognormal transformation. Remove outliers if justified. Increase sample size."},
-            {"context": "Troubleshooting", "text": "If you see 'Need ≥2 data points': Enter at least 2 measurements in the Data Worksheet or in the manual entry fields."},
-            {"context": "Troubleshooting", "text": "If the worksheet upload doesn't work: Ensure your file has at least one numeric column. The tool uses the first numeric column as measurement values."},
-
-            # --- History & Export ---
-            {"context": "History & Export", "text": "Every time you click 'ANALYZE & PLOT', the results are saved to the History tab with a timestamp. Up to 250 runs are kept."},
-            {"context": "History & Export", "text": "Use the History tab filters to search by name, verdict, or characteristic. Select rows with checkboxes and click 'Export Selected' to download as Excel."},
-            {"context": "History & Export", "text": "The History Cpk Trend chart shows how Cpk has changed over time. A declining trend indicates the process is degrading and needs attention."},
-            {"context": "History & Export", "text": "You can download the full history as CSV using the 'Download History CSV' button for further analysis in Excel or other tools."},
-
-            # --- Industry Standards ---
-            {"context": "Industry Standards", "text": "IATF 16949 (Automotive): Cpk ≥ 1.33 for production, Cpk ≥ 1.67 for new processes/safety-critical features. Some OEMs require Cpk ≥ 2.0 for critical dimensions."},
-            {"context": "Industry Standards", "text": "ISO 22514 defines capability study procedures. Short-term (Cm/Cmk) uses ≥50 parts from one setup. Long-term (Pp/Ppk) uses ≥100 parts across multiple setups/shifts."},
-            {"context": "Industry Standards", "text": "Aerospace (AS9100): Process capability requirements vary by customer but typically Cpk ≥ 1.33. Some require Cpk ≥ 1.5 for critical features."},
-            {"context": "Industry Standards", "text": "Medical devices (ISO 13485): Capability requirements depend on risk classification. Critical-to-quality features often require Cpk ≥ 1.33 minimum."},
+            {"context": "Hypothesis (Z-Test)", "text": "### Z-Test for Centering\n\nThe app performs a 1-sample Z-test to statistically prove if the mean has drifted from the Target (Tₘ).\n\n*   **$H_0$ (Null):** Mean = Tₘ (On target)\n*   **$H_1$ (Alt):** Mean ≠ Tₘ (Off target)\n*   **p-value < 0.05**: Reject $H_0$. Strong evidence the process has shifted.\n*   **p-value ≥ 0.05**: Cannot reject $H_0$. Process is statistically centered."},
+            
+            # --- Application Status / Context ---
+            {"context": "Current Status Inquiry", "text": "It looks like you want to know about your current data. If you have run an analysis, I can see the results and give you specific advice. Just ask 'How is my process doing?' or 'What is my current Cpk?'"}
         ]
 
         return [
             {"original": s["text"], "lower": s["text"].lower(), "context": s["context"]}
             for s in raw_sections
-            if len(s["text"]) > 10
         ]
 
-    def get_response(self, user_input):
+    def get_response(self, user_input, context_data=None):
         user_input_lower = user_input.lower()
         if not user_input_lower:
             return None
 
         # Simple keyword extraction
         keywords = [
-            word
-            for word in re.split(r"[\s,?\-.();:]+", user_input_lower)
+            word for word in re.split(r"[\s,?\-.();:]+", user_input_lower)
             if word and len(word) > 2 and word not in self.common_words
         ]
 
+        # Context-aware injection (RAG simulation)
+        is_asking_about_current = any(k in user_input_lower for k in ["my process", "my cpk", "my data", "current", "how am i doing", "status", "results", "failed "])
+        
+        if is_asking_about_current and context_data and "stats" in context_data:
+            stats = context_data["stats"]
+            cpk = stats.get("cpk", "N/A")
+            cp = stats.get("cp", "N/A")
+            verdict = stats.get("verdict", "Unknown")
+            failed_rules = context_data.get("failed_rules", [])
+            
+            response = f"**Current Process Analysis**\n\nBased on your active characteristic **{context_data.get('name', '')}**:\n\n*   **Cpk:** {cpk}\n*   **Cp:** {cp}\n*   **Verdict:** {verdict}\n\n"
+            
+            if isinstance(cpk, float) and isinstance(cp, float):
+                if cpk < 1.0 and cp > 1.33:
+                    response += "🟡 **Advice:** Your process variation is excellent (high Cp), but it is off-center (low Cpk). Adjust the machine mean by the Required Shift.\n"
+                elif cpk < 1.0 and cp < 1.0:
+                    response += "🔴 **Advice:** Your process has too much variation to meet tolerances. Center shifting won't be enough. You must investigate the root cause of the variation.\n"
+                elif cpk >= 1.33:
+                    response += "🟢 **Advice:** Your process is highly capable and stable. Keep it up!\n"
+
+            if failed_rules:
+                response += "\n⚠️ **Statistical Process Control Warnings:**\n"
+                for rule in failed_rules:
+                    response += f"- {rule}\n"
+                response += "\nSince you have out-of-control points, capability indices (Cpk) may be unreliable until stability is restored."
+                
+            return response
+
         if not keywords:
-            return "Please ask a more specific question using keywords like 'Cp', 'Cpk', 'control chart', 'histogram', 'PPM', 'hypothesis', 'troubleshooting', etc."
+            return "Please ask a more specific question using keywords like 'Cp', 'Cpk', 'rules', 'histogram', 'PPM', 'hypothesis', 'troubleshoot', or ask 'How is my process doing?'"
 
         best_match = None
         highest_score = 0
@@ -2185,7 +2272,10 @@ class Chatbot:
                 if keyword in section["lower"]:
                     current_score += 1
                     if keyword in section["context"].lower():
-                        current_score += 2  # Stronger context bonus
+                        current_score += 2
+            
+            if "status" in section["lower"] and is_asking_about_current:
+                current_score += 5
 
             if current_score > highest_score:
                 highest_score = current_score
@@ -2197,16 +2287,14 @@ class Chatbot:
             ):
                 best_match = section
 
-        if best_match:
-            return f'**{best_match["context"]}**\n\n{best_match["original"]}'
+        if best_match and highest_score > 0:
+            return f"{best_match['original']}"
         else:
-            return ("Sorry, I couldn't find that specific topic. Try keywords like:\n"
-                    "- **Capability:** Cp, Cpk, Pp, Ppk, capability, sigma\n"
-                    "- **Charts:** control chart, I-chart, MR chart, zones, filter\n"
-                    "- **Stats:** standard deviation, PPM, histogram, normal\n"
-                    "- **Testing:** hypothesis, p-value, Z-test, confidence\n"
-                    "- **Help:** troubleshooting, workflow, steps, industry\n"
-                    "- **Data:** template, upload, download, worksheet")
+            return ("Sorry, I couldn't find a strong match for that. Try asking about:\n"
+                    "- **Indices:** Cp, Cpk, Pp, Ppk\n"
+                    "- **Status:** 'How is my process doing?'\n"
+                    "- **Rules:** Out of control, Nelson rules, warning limits\n"
+                    "- **Concepts:** PPM, Z-test, standard deviation, tolerance")
 
 
 # --- Main App ---
@@ -2705,125 +2793,684 @@ def apply_data_transformation(values, transform_type, **kwargs):
 
 # Set page configuration
 st.set_page_config(
-    page_title="Statistical Process Capability & Data Analytics",
+    page_title="Statistical Process Capability & AI Data Analytics",
     layout="wide",
     initial_sidebar_state="collapsed",
     menu_items={"Get Help": None, "Report a bug": None, "About": None},
 )
 
+_theme_lookup = {name.lower(): name for name in THEME_PRESETS}
+try:
+    _theme_from_query = st.query_params.get("theme", "").strip().lower()
+except Exception:
+    _theme_from_query = ""
+
+if _theme_from_query in _theme_lookup:
+    st.session_state.ui_theme = _theme_lookup[_theme_from_query]
+elif "ui_theme" not in st.session_state:
+    st.session_state.ui_theme = "Midnight"
+    try:
+        st.query_params["theme"] = "midnight"
+    except Exception:
+        pass
+
+_theme = THEME_PRESETS.get(st.session_state.get("ui_theme", "Midnight"), THEME_PRESETS["Midnight"])
+_is_light_theme = st.session_state.get("ui_theme", "Midnight") == "Light"
+_soft_bg = "#e8f0fa" if _is_light_theme else "rgba(255,255,255,0.05)"
+_soft_bg_hover = "#dbe8f8" if _is_light_theme else "rgba(255,255,255,0.08)"
+_disabled_bg = "#e2e8f0" if _is_light_theme else "#1f2937"
+_disabled_text = "#475569" if _is_light_theme else "#7b879a"
+_alert_info_bg = "#dbeafe" if _is_light_theme else "rgba(59,130,246,0.16)"
+_alert_warn_bg = "#fef3c7" if _is_light_theme else "rgba(245,158,11,0.18)"
+_alert_success_bg = "#dcfce7" if _is_light_theme else "rgba(34,197,94,0.16)"
+_alert_error_bg = "#fee2e2" if _is_light_theme else "rgba(239,68,68,0.16)"
+_expander_bg = "#ffffff" if _is_light_theme else "#1b2230"
+_expander_header_bg = "#eef4fb" if _is_light_theme else "#1b2230"
+_chat_user_bg = "#dbeafe" if _is_light_theme else "rgba(59,130,246,0.18)"
+_chat_assistant_bg = "#ffffff" if _is_light_theme else "rgba(15,23,42,0.5)"
+_plot_font = "#0f172a" if _is_light_theme else "#cbd5e1"
+_plot_grid = "rgba(148,163,184,0.28)" if _is_light_theme else "rgba(128,128,128,0.15)"
+_plot_line = "rgba(100,116,139,0.45)" if _is_light_theme else "rgba(128,128,128,0.25)"
+_plot_hover_bg = "rgba(255,255,255,0.97)" if _is_light_theme else "rgba(30,41,59,0.92)"
+_plot_hover_text = "#0f172a" if _is_light_theme else "#e2e8f0"
+_plot_legend_bg = "rgba(255,255,255,0.92)" if _is_light_theme else "rgba(128,128,128,0.08)"
+
 # Hide Streamlit's default Deploy button and menu, reduce top padding
 st.markdown(
-    """
+    f"""
 <style>
+    :root {{
+        --app-page-bg: {_theme["page_bg"]};
+        --app-panel-bg: {_theme["panel_bg"]};
+        --app-panel-alt: {_theme["panel_alt"]};
+        --app-text: {_theme["text"]};
+        --app-muted: {_theme["muted"]};
+        --app-accent: {_theme["accent"]};
+        --app-accent-2: {_theme["accent_2"]};
+        --app-tab-text: {_theme["tab_text"]};
+        --app-metric-bg: {_theme["metric_bg"]};
+        --app-card-bg: {_theme["card_bg"]};
+        --app-border: {_theme["border"]};
+        --app-header-grad: {_theme["header_grad"]};
+        --app-tab-grad: {_theme["tab_grad"]};
+        --app-tab-active: {_theme["tab_active"]};
+        --app-title-grad: {_theme["title_grad"]};
+        --app-soft-bg: {_soft_bg};
+        --app-soft-bg-hover: {_soft_bg_hover};
+        --app-disabled-bg: {_disabled_bg};
+        --app-disabled-text: {_disabled_text};
+        --app-alert-info-bg: {_alert_info_bg};
+        --app-alert-warn-bg: {_alert_warn_bg};
+        --app-alert-success-bg: {_alert_success_bg};
+        --app-alert-error-bg: {_alert_error_bg};
+        --app-expander-bg: {_expander_bg};
+        --app-expander-header-bg: {_expander_header_bg};
+        --app-chat-user-bg: {_chat_user_bg};
+        --app-chat-assistant-bg: {_chat_assistant_bg};
+    }}
+
+    /* Light Theme Input Fixes */
+    .stTextInput input, 
+    .stNumberInput input,
+    .stSelectbox div[data-baseweb="select"],
+    .stSelectbox div[data-baseweb="select"] *,
+    .stTextArea textarea {{
+        color: var(--app-text) !important;
+    }}
+
     /* === HIDE STREAMLIT DEFAULTS === */
-    .stDeployButton {display: none !important;}
-    #MainMenu {display: none !important;}
-    header {display: none !important;}
-    footer {display: none !important;}
-    .stMainBlockContainer {padding-top: 0.75rem !important;}
-    .block-container {padding-top: 0.75rem !important; padding-left: 1.25rem !important; padding-right: 1.25rem !important;}
+    .stDeployButton {{display: none !important;}}
+    #MainMenu {{display: none !important;}}
+    header {{display: none !important;}}
+    footer {{display: none !important;}}
+    .stMainBlockContainer {{padding-top: 0.55rem !important;}}
+    .block-container {{padding-top: 0.55rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 98rem;}}
+    [data-testid="stAppViewContainer"] {{
+        background:
+            radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 28%),
+            radial-gradient(circle at top right, rgba(6,182,212,0.12), transparent 24%),
+            var(--app-page-bg) !important;
+        color: var(--app-text) !important;
+    }}
     
-    html, body {
+    html, body {{
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         font-size: 15px;
-    }
+        color: var(--app-text) !important;
+    }}
+    p, li {{
+        line-height: 1.42;
+    }}
+    [data-testid="stMarkdownContainer"],
+    [data-testid="stMarkdownContainer"] *,
+    [data-testid="stCaptionContainer"],
+    [data-testid="stCaptionContainer"] *,
+    [data-testid="stText"],
+    [data-testid="stText"] *,
+    .stAlert,
+    .stAlert * {{
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stAlert"] {{
+        border-radius: 14px !important;
+        border: 1px solid var(--app-border) !important;
+    }}
+    [data-testid="stAlert"][kind="info"] {{
+        background: var(--app-alert-info-bg) !important;
+    }}
+    [data-testid="stAlert"][kind="warning"] {{
+        background: var(--app-alert-warn-bg) !important;
+    }}
+    [data-testid="stAlert"][kind="success"] {{
+        background: var(--app-alert-success-bg) !important;
+    }}
+    [data-testid="stAlert"][kind="error"] {{
+        background: var(--app-alert-error-bg) !important;
+    }}
+    h1, h2, h3 {{
+        letter-spacing: -0.02em;
+        color: var(--app-text) !important;
+    }}
+    h2 {{
+        font-size: 1.42rem !important;
+        font-weight: 800 !important;
+        margin: 0.1rem 0 0.45rem 0 !important;
+    }}
+    h3 {{
+        font-size: 1.02rem !important;
+        font-weight: 700 !important;
+        margin: 0.1rem 0 0.4rem 0 !important;
+    }}
+    [data-testid="stHeadingWithActionElements"] {{
+        margin-bottom: 0.18rem !important;
+    }}
+    .element-container {{
+        margin-bottom: 0.28rem !important;
+    }}
+    div[data-testid="stVerticalBlock"] {{
+        gap: 0.42rem !important;
+    }}
+    div[data-testid="stVerticalBlockBorderWrapper"] {{
+        padding: 0.2rem 0.15rem !important;
+        border-radius: 14px !important;
+        border-color: var(--app-border) !important;
+        background: var(--app-card-bg);
+    }}
     
     /* === METRICS === */
-    [data-testid="stMetric"] {
-        padding: 0.85rem 1rem !important;
-        border-radius: 10px;
-        border-left: 3px solid #3b82f6;
-    }
-    
-    /* === THEME-AWARE METRIC BACKGROUNDS === */
-    @media (prefers-color-scheme: light) {
-        [data-testid="stMetric"] {
-            background: #f8fafc;
-        }
-    }
-    @media (prefers-color-scheme: dark) {
-        [data-testid="stMetric"] {
-            background: #1e293b !important;
-        }
-        [data-testid="stMetric"] label,
-        [data-testid="stMetric"] [data-testid="stMetricValue"],
-        [data-testid="stMetric"] [data-testid="stMetricDelta"] {
-            color: #e2e8f0 !important;
-        }
-    }
-    
-    /* Explicit dark mode overrides using all known Streamlit selectors */
-    [data-theme="dark"] [data-testid="stMetric"],
-    .stApp[data-theme="dark"] [data-testid="stMetric"],
-    [data-testid="stAppViewContainer"][data-theme="dark"] [data-testid="stMetric"],
-    .stApp.appview-container [data-testid="stMetric"] {
-        background: #1e293b !important;
-    }
-    [data-theme="dark"] [data-testid="stMetric"] label,
-    [data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricValue"],
-    [data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricDelta"],
-    .stApp[data-theme="dark"] [data-testid="stMetric"] label,
-    .stApp[data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricValue"],
-    .stApp[data-theme="dark"] [data-testid="stMetric"] [data-testid="stMetricDelta"] {
-        color: #e2e8f0 !important;
-    }
+    [data-testid="stMetric"] {{
+        padding: 0.7rem 0.85rem !important;
+        border-radius: 12px;
+        border-left: 3px solid var(--app-accent);
+        background: var(--app-metric-bg) !important;
+        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
+    }}
+    [data-testid="stMetric"] label,
+    [data-testid="stMetric"] [data-testid="stMetricValue"],
+    [data-testid="stMetric"] [data-testid="stMetricDelta"] {{
+        color: var(--app-text) !important;
+    }}
+    .selector-metric-card {{
+        min-height: 4.55rem;
+        padding: 0.62rem 0.82rem;
+        border-radius: 14px;
+        border-left: 3px solid var(--app-accent);
+        background: var(--app-metric-bg);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        box-shadow: none;
+    }}
+    .selector-metric-copy {{
+        min-width: 0;
+    }}
+    .selector-metric-label {{
+        font-size: 0.76rem;
+        line-height: 1.05;
+        color: var(--app-muted);
+        margin-bottom: 0.18rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }}
+    .selector-metric-value {{
+        font-size: 1.5rem;
+        line-height: 1;
+        font-weight: 800;
+        color: var(--app-text);
+    }}
     
     /* === PROFESSIONAL NAVIGATION BAR === */
-    .stTabs [data-baseweb="tab-list"] {
-        background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%) !important;
-        border-radius: 12px !important;
-        padding: 6px 8px !important;
-        gap: 4px !important;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255,255,255,0.05) !important;
-        border: 1px solid rgba(255,255,255,0.08) !important;
-        margin-bottom: 1.25rem !important;
-    }
-    .stTabs [data-baseweb="tab"] {
-        padding: 0.65rem 1.25rem !important;
-        font-weight: 500 !important;
-        font-size: 0.92rem !important;
+    .stTabs [data-baseweb="tab-list"] {{
+        background: var(--app-tab-grad) !important;
+        border-radius: 18px !important;
+        padding: 6px 3.25rem 6px 8px !important;
+        gap: 6px !important;
+        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255,255,255,0.06) !important;
+        border: 1px solid var(--app-border) !important;
+        margin-bottom: 0.95rem !important;
+        backdrop-filter: blur(14px);
+    }}
+    .stTabs [data-baseweb="tab"] {{
+        padding: 0.58rem 1rem !important;
+        font-weight: 600 !important;
+        font-size: 0.86rem !important;
         letter-spacing: 0.02em !important;
-        color: #94a3b8 !important;
-        border-radius: 8px !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        color: var(--app-tab-text) !important;
+        border-radius: 12px !important;
+        transition: all 0.24s ease !important;
         border: 1px solid transparent !important;
         background: transparent !important;
-    }
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #e2e8f0 !important;
-        background: rgba(59, 130, 246, 0.12) !important;
-        border-color: rgba(59, 130, 246, 0.2) !important;
-    }
-    .stTabs [aria-selected="true"] {
+    }}
+    .stTabs [data-baseweb="tab"]:hover {{
+        color: var(--app-text) !important;
+        background: rgba(255,255,255,0.06) !important;
+        border-color: var(--app-border) !important;
+        transform: translateY(-1px);
+    }}
+    .stTabs [aria-selected="true"] {{
         color: #ffffff !important;
-        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%) !important;
-        border-color: rgba(96, 165, 250, 0.3) !important;
-        box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255,255,255,0.15) !important;
-        font-weight: 600 !important;
-    }
-    .stTabs [data-baseweb="tab-highlight"] {
+        background: var(--app-tab-active) !important;
+        border-color: rgba(255,255,255,0.18) !important;
+        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255,255,255,0.18) !important;
+        font-weight: 700 !important;
+    }}
+    .stTabs [data-baseweb="tab-highlight"] {{
         display: none !important;
-    }
-    .stTabs [data-baseweb="tab-border"] {
+    }}
+    .stTabs [data-baseweb="tab-border"] {{
         display: none !important;
-    }
+    }}
+
+    .app-shell {{
+        padding: 0.8rem 0.95rem 0.85rem 0.95rem;
+        border-radius: 18px;
+        background: var(--app-header-grad);
+        border: 1px solid var(--app-border);
+        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
+        margin-bottom: 0.7rem;
+    }}
+    .app-shell-title {{
+        margin: 0;
+        font-size: 1.46rem;
+        line-height: 1.08;
+        font-weight: 800;
+        letter-spacing: -0.03em;
+        background: var(--app-title-grad);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+    }}
+    .app-shell-subtitle {{
+        margin-top: 0.28rem;
+        color: var(--app-muted);
+        font-size: 0.82rem;
+    }}
+    .theme-chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        padding: 0.28rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.08);
+        border: 1px solid var(--app-border);
+        color: var(--app-muted);
+        font-size: 0.72rem;
+        margin-bottom: 0.45rem;
+    }}
     
     .stButton > button,
-    .stDownloadButton > button {
-        min-height: 2.8rem;
-    }
+    .stDownloadButton > button {{
+        min-height: 2.45rem;
+        border-radius: 12px !important;
+        padding-top: 0.35rem !important;
+        padding-bottom: 0.35rem !important;
+    }}
+    .stButton > button[kind="secondary"],
+    .stDownloadButton > button[kind="secondary"] {{
+        background: var(--app-panel-bg) !important;
+        color: var(--app-text) !important;
+        border: 1px solid var(--app-border) !important;
+        box-shadow: none !important;
+    }}
+    .stButton > button,
+    .stDownloadButton > button,
+    .stButton > button *,
+    .stDownloadButton > button * {{
+        color: inherit !important;
+    }}
+    .stButton > button[kind="secondary"]:hover,
+    .stDownloadButton > button[kind="secondary"]:hover {{
+        background: var(--app-soft-bg-hover) !important;
+        border-color: var(--app-accent) !important;
+        color: var(--app-text) !important;
+    }}
+    .stButton > button[kind="primary"] {{
+        color: #ffffff !important;
+        border: 1px solid transparent !important;
+    }}
+    .stButton > button:disabled,
+    .stDownloadButton > button:disabled {{
+        background: var(--app-disabled-bg) !important;
+        color: var(--app-disabled-text) !important;
+        border: 1px solid var(--app-border) !important;
+        opacity: 1 !important;
+    }}
+    .stButton > button:disabled *,
+    .stDownloadButton > button:disabled * {{
+        color: var(--app-disabled-text) !important;
+        opacity: 1 !important;
+    }}
+
+    /* === INPUTS / SELECTS / TEXT === */
+    .stSelectbox label,
+    .stNumberInput label,
+    .stTextInput label,
+    .stRadio label,
+    .stSlider label,
+    .stTextArea label,
+    .stMarkdown,
+    .stCaption,
+    .st-emotion-cache-10trblm,
+    .st-emotion-cache-16idsys p {{
+        color: var(--app-text) !important;
+    }}
+    [data-baseweb="input"] > div,
+    [data-baseweb="select"] > div {{
+        background: var(--app-panel-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        color: var(--app-text) !important;
+        min-height: 2.45rem !important;
+        box-shadow: none !important;
+    }}
+    [data-baseweb="input"] input,
+    [data-baseweb="input"] textarea,
+    [data-baseweb="select"] input,
+    [data-baseweb="select"] span,
+    [data-baseweb="select"] div,
+    [data-baseweb="base-input"] input {{
+        color: var(--app-text) !important;
+        background: transparent !important;
+    }}
+    input::placeholder,
+    textarea::placeholder {{
+        color: var(--app-muted) !important;
+        opacity: 1 !important;
+    }}
+    [data-baseweb="select"] svg,
+    [data-baseweb="input"] svg {{
+        fill: var(--app-text) !important;
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stNumberInput"] button {{
+        background: var(--app-soft-bg) !important;
+        color: var(--app-text) !important;
+        border-left: 1px solid var(--app-border) !important;
+        box-shadow: none !important;
+    }}
+    [data-testid="stNumberInput"] button:hover {{
+        background: var(--app-soft-bg-hover) !important;
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stNumberInput"] button:disabled,
+    [data-testid="stSelectbox"] [aria-disabled="true"],
+    [data-testid="stTextInput"] [aria-disabled="true"] {{
+        background: var(--app-disabled-bg) !important;
+        color: var(--app-disabled-text) !important;
+    }}
+    [data-baseweb="select"] input:disabled,
+    [data-baseweb="select"] input[disabled],
+    [data-baseweb="base-input"] input:disabled,
+    [data-baseweb="base-input"] input[disabled],
+    [data-baseweb="input"] input:disabled,
+    [data-baseweb="input"] input[disabled] {{
+        color: var(--app-disabled-text) !important;
+        -webkit-text-fill-color: var(--app-disabled-text) !important;
+        opacity: 1 !important;
+        background: transparent !important;
+    }}
+    [data-baseweb="select"] > div:has(input:disabled),
+    [data-baseweb="base-input"] > div:has(input:disabled),
+    [data-baseweb="input"] > div:has(input:disabled) {{
+        background: var(--app-disabled-bg) !important;
+        border-color: var(--app-border) !important;
+    }}
+    [data-testid="stSelectbox"] [aria-disabled="true"] *,
+    [data-testid="stTextInput"] [aria-disabled="true"] *,
+    [data-testid="stNumberInput"] [aria-disabled="true"] * {{
+        color: var(--app-disabled-text) !important;
+        opacity: 1 !important;
+    }}
+    [data-baseweb="popover"],
+    [data-baseweb="popover"] *,
+    [role="listbox"],
+    [role="listbox"] *,
+    [role="option"],
+    [role="option"] * {{
+        background: var(--app-panel-bg) !important;
+        color: var(--app-text) !important;
+    }}
+    [role="option"][aria-selected="true"] {{
+        background: color-mix(in srgb, var(--app-accent) 18%, var(--app-panel-bg)) !important;
+    }}
+    [data-testid="stSelectbox"] > div,
+    [data-testid="stNumberInput"] > div,
+    [data-testid="stTextInput"] > div,
+    [data-testid="stTextArea"] > div {{
+        max-width: 100% !important;
+    }}
+    [data-baseweb="radio"] > div {{
+        gap: 0.35rem !important;
+    }}
+    [data-testid="stSlider"] > div[data-baseweb="slider"] {{
+        padding-left: 0.15rem !important;
+        padding-right: 0.15rem !important;
+    }}
+    [data-testid="stSelectbox"],
+    [data-testid="stNumberInput"],
+    [data-testid="stTextInput"],
+    [data-testid="stTextArea"] {{
+        width: 100% !important;
+    }}
+    [data-testid="stRadio"] [role="radiogroup"] label,
+    [data-testid="stRadio"] [role="radiogroup"] div {{
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stFileUploader"] section,
+    [data-testid="stFileUploaderDropzone"],
+    [data-testid="stFileUploaderDropzone"] * {{
+        background: var(--app-panel-bg) !important;
+        color: var(--app-text) !important;
+        border-color: var(--app-border) !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] button {{
+        background: var(--app-soft-bg) !important;
+        color: var(--app-text) !important;
+        border: 1px solid var(--app-border) !important;
+    }}
+    [data-testid="stFileUploaderDropzone"] button:hover {{
+        background: var(--app-soft-bg-hover) !important;
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stDataFrame"] {{
+        background: var(--app-panel-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        border-radius: 12px !important;
+        --gdg-bg-cell: var(--app-panel-bg);
+        --gdg-bg-cell-medium: var(--app-panel-bg);
+        --gdg-bg-header: var(--app-soft-bg);
+        --gdg-bg-header-has-focus: var(--app-soft-bg-hover);
+        --gdg-header-font-style: 600 13px sans-serif;
+        --gdg-base-font-style: 500 13px sans-serif;
+        --gdg-text-dark: var(--app-text);
+        --gdg-text-medium: var(--app-text);
+        --gdg-text-light: var(--app-muted);
+        --gdg-border-color: var(--app-border);
+        --gdg-horizontal-border-color: var(--app-border);
+        --gdg-vertical-border-color: var(--app-border);
+        --gdg-selection-color: color-mix(in srgb, var(--app-accent) 16%, transparent);
+        --gdg-accent-color: var(--app-accent);
+    }}
+    [data-testid="stDataFrame"] [role="grid"],
+    [data-testid="stDataFrame"] [role="grid"] * {{
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stDataFrame"] [role="columnheader"] {{
+        background: var(--app-soft-bg) !important;
+        color: var(--app-text) !important;
+        border-color: var(--app-border) !important;
+    }}
+    [data-testid="stDataFrame"] [role="gridcell"] {{
+        background: var(--app-panel-bg) !important;
+        border-color: var(--app-border) !important;
+    }}
+    [data-testid="stDataFrame"] input,
+    [data-testid="stDataFrame"] textarea {{
+        color: var(--app-text) !important;
+        background: transparent !important;
+    }}
+    [data-testid="stDataFrame"] svg {{
+        color: var(--app-text) !important;
+        fill: var(--app-text) !important;
+    }}
+    [data-testid="stDataFrame"] canvas {{
+        border-radius: 12px !important;
+    }}
+    [data-testid="stChatInput"] {{
+        background: var(--app-panel-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        border-radius: 14px !important;
+    }}
+    [data-testid="stChatInput"] textarea,
+    [data-testid="stChatInput"] input {{
+        color: var(--app-text) !important;
+        background: transparent !important;
+    }}
+    [data-testid="stChatMessageContent"] {{
+        color: var(--app-text) !important;
+    }}
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {{
+        background: var(--app-chat-user-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        border-radius: 14px !important;
+        padding: 0.15rem 0.45rem !important;
+    }}
+    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {{
+        background: var(--app-chat-assistant-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        border-radius: 14px !important;
+        padding: 0.15rem 0.45rem !important;
+    }}
+    [data-testid="stExpander"] {{
+        background: var(--app-expander-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        border-radius: 14px !important;
+        overflow: hidden !important;
+    }}
+    [data-testid="stExpander"] summary {{
+        background: var(--app-expander-header-bg) !important;
+        color: var(--app-text) !important;
+        border-radius: 14px !important;
+    }}
+    [data-testid="stExpander"] summary:hover {{
+        background: var(--app-soft-bg-hover) !important;
+    }}
+    [data-testid="stExpanderDetails"] {{
+        background: var(--app-expander-bg) !important;
+        color: var(--app-text) !important;
+    }}
+    .header-theme-wrap [data-testid="stSelectbox"] {{
+        max-width: 13rem !important;
+        margin-left: auto !important;
+    }}
+    .header-theme-wrap,
+    .nav-theme-wrap {{
+        width: fit-content;
+        margin-left: auto;
+    }}
+    .nav-theme-wrap {{
+        display: flex;
+        align-items: center;
+        padding-top: 0.18rem;
+        margin-left: -3.05rem;
+        position: relative;
+        z-index: 8;
+    }}
+    .header-theme-wrap [data-testid="stPopover"],
+    .nav-theme-wrap [data-testid="stPopover"] {{
+        width: auto !important;
+        display: flex;
+        justify-content: flex-end;
+    }}
+    .header-theme-wrap > div,
+    .nav-theme-wrap > div {{
+        width: auto !important;
+    }}
+    .header-theme-wrap button[kind="secondary"],
+    .nav-theme-wrap button[kind="secondary"] {{
+        min-width: 1.95rem !important;
+        width: 1.95rem !important;
+        height: 1.95rem !important;
+        padding: 0 !important;
+        border-radius: 999px !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
+        background: var(--app-panel-bg) !important;
+        color: var(--app-text) !important;
+        border: 1px solid var(--app-border) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.16) !important;
+    }}
+    .header-theme-wrap button[kind="secondary"]:hover,
+    .nav-theme-wrap button[kind="secondary"]:hover {{
+        border-color: var(--app-accent) !important;
+        color: var(--app-accent-2) !important;
+        transform: translateY(-1px);
+    }}
+    .header-theme-wrap [data-testid="stPopoverContent"],
+    .nav-theme-wrap [data-testid="stPopoverContent"] {{
+        min-width: 8.2rem !important;
+        max-width: 8.8rem !important;
+        padding: 0.15rem !important;
+    }}
+    .theme-popover-title {{
+        color: var(--app-muted);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        margin-bottom: 0.35rem;
+    }}
+    .theme-popover-grid {{
+        display: grid;
+        gap: 0.32rem;
+    }}
+    .theme-popover-grid .stButton > button {{
+        min-height: 2rem !important;
+        height: 2rem !important;
+        width: 100% !important;
+        border-radius: 10px !important;
+        padding: 0.2rem 0.55rem !important;
+        justify-content: flex-start !important;
+        font-size: 0.8rem !important;
+        font-weight: 700 !important;
+        background: var(--app-panel-bg) !important;
+        border: 1px solid var(--app-border) !important;
+        color: var(--app-text) !important;
+        box-shadow: none !important;
+    }}
+    .theme-popover-grid .stButton > button:hover {{
+        border-color: var(--app-accent) !important;
+        color: var(--app-accent) !important;
+    }}
+    .theme-popover-grid .stButton > button[kind="primary"] {{
+        background: var(--app-tab-active) !important;
+        border-color: rgba(255,255,255,0.18) !important;
+        color: #ffffff !important;
+    }}
     
-    [data-testid="stDataFrame"] {
+    [data-testid="stDataFrame"] {{
         border-radius: 8px !important;
-    }
+    }}
     
-    div[data-testid="stHorizontalBlock"] {
+    div[data-testid="stHorizontalBlock"] {{
         align-items: stretch;
-    }
+    }}
     
-    .stSelectbox, .stNumberInput, .stTextInput, .stRadio {
-        margin-bottom: 0.25rem;
-    }
+    .stSelectbox, .stNumberInput, .stTextInput, .stRadio {{
+        margin-bottom: 0.12rem;
+    }}
+
+    .ai-settings-note {{
+        padding: 0.85rem 1rem;
+        border-radius: 12px;
+        border: 1px solid var(--app-border);
+        background: var(--app-card-bg);
+        margin-bottom: 0.75rem;
+        line-height: 1.5;
+    }}
+    .ai-summary-card {{
+        padding: 1rem 1.1rem;
+        border-radius: 14px;
+        border: 1px solid var(--app-border);
+        background: var(--app-card-bg);
+    }}
+    .ai-summary-card ul {{
+        margin-top: 0.45rem;
+        padding-left: 1.1rem;
+    }}
+    .ai-summary-card li {{
+        margin-bottom: 0.35rem;
+    }}
+    {"html body [data-testid='stAppViewContainer'] .stButton > button, html body [data-testid='stAppViewContainer'] .stDownloadButton > button, html body [data-testid='stAppViewContainer'] [data-testid='stFileUploaderDropzone'] button { background: #ffffff !important; color: #0f172a !important; border: 1px solid rgba(15,23,42,0.18) !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] .stButton > button[kind='secondary'], html body [data-testid='stAppViewContainer'] .stButton > button[kind='secondaryFormSubmit'], html body [data-testid='stAppViewContainer'] .stDownloadButton > button[kind='secondary'], html body [data-testid='stAppViewContainer'] .stDownloadButton > button[kind='secondaryFormSubmit'] { background: #ffffff !important; color: #0f172a !important; border: 1px solid rgba(15,23,42,0.18) !important; box-shadow: none !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] .stButton > button:disabled, html body [data-testid='stAppViewContainer'] .stButton > button[disabled], html body [data-testid='stAppViewContainer'] .stButton > button[aria-disabled='true'] { background: #e2e8f0 !important; color: #475569 !important; border: 1px solid rgba(15,23,42,0.16) !important; opacity: 1 !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] .stButton > button:disabled *, html body [data-testid='stAppViewContainer'] .stButton > button[disabled] *, html body [data-testid='stAppViewContainer'] .stButton > button[aria-disabled='true'] * { color: #475569 !important; -webkit-text-fill-color: #475569 !important; opacity: 1 !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] [data-testid='stNumberInput'] button, html body [data-testid='stAppViewContainer'] [data-testid='stNumberInput'] button * { background: #e8f0fa !important; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] [data-baseweb='select'] input, html body [data-testid='stAppViewContainer'] [data-baseweb='select'] span, html body [data-testid='stAppViewContainer'] [data-baseweb='base-input'] input, html body [data-testid='stAppViewContainer'] [data-baseweb='input'] input { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] [data-baseweb='select'] input:disabled, html body [data-testid='stAppViewContainer'] [data-baseweb='select'] span[aria-disabled='true'], html body [data-testid='stAppViewContainer'] [data-baseweb='base-input'] input:disabled, html body [data-testid='stAppViewContainer'] [data-baseweb='input'] input:disabled { color: #475569 !important; -webkit-text-fill-color: #475569 !important; opacity: 1 !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] [data-testid='stDataFrame'], html body [data-testid='stAppViewContainer'] [data-testid='stDataEditor'] { --gdg-bg-cell: #ffffff !important; --gdg-bg-cell-medium: #ffffff !important; --gdg-bg-header: #e8f0fa !important; --gdg-bg-header-has-focus: #dbe8f8 !important; --gdg-text-dark: #0f172a !important; --gdg-text-medium: #0f172a !important; --gdg-text-light: #475569 !important; --gdg-border-color: rgba(15,23,42,0.14) !important; --gdg-horizontal-border-color: rgba(15,23,42,0.14) !important; --gdg-vertical-border-color: rgba(15,23,42,0.14) !important; --gdg-accent-color: #2563eb !important; }" if _is_light_theme else ""}
+    {"html body [data-testid='stAppViewContainer'] [data-testid='stDataFrame'] [role='columnheader'], html body [data-testid='stAppViewContainer'] [data-testid='stDataEditor'] [role='columnheader'] { background: #e8f0fa !important; color: #0f172a !important; }" if _is_light_theme else ""}
 </style>
 """,
     unsafe_allow_html=True,
@@ -2850,6 +3497,7 @@ def init_session_state(clear_form=False):
         "raw_data": "",
         "transform_dirty": False,
         "last_uploaded_signature": None,
+        "ui_theme": "Midnight",
     }
 
     if "history" not in st.session_state:
@@ -2903,13 +3551,232 @@ init_session_state()
 ensure_characteristics_state()
 sync_characteristic_state_machine()
 
-# --- Main App UI ---
-st.title("Statistical Process Capability & Data Analytics")
 
-# Define Tabs
-tab_analysis, tab_data, tab_viz, tab_history, tab_ref = st.tabs(
-    ["Analysis & Report", "Data Worksheet", "Visualization", "History", "Reference"]
+def _predictive_linear_regression(values):
+    if len(values) <= 1:
+        return 0.0, float(values[0]) if values else 0.0
+    x = np.arange(len(values), dtype=float)
+    y = np.asarray(values, dtype=float)
+    slope, intercept = np.polyfit(x, y, 1)
+    return float(slope), float(intercept)
+
+
+def _predictive_capability(mean, sigma, lsl, usl):
+    if not all(np.isfinite(v) for v in [mean, sigma, lsl, usl]) or usl <= lsl:
+        return np.nan
+    if sigma < 0:
+        return np.nan
+    if sigma == 0:
+        return float("inf") if lsl <= mean <= usl else float("-inf")
+    return min((usl - mean) / (3 * sigma), (mean - lsl) / (3 * sigma))
+
+
+def _predictive_ppm(mean, sigma, lsl, usl):
+    if not all(np.isfinite(v) for v in [mean, sigma, lsl, usl]) or usl <= lsl:
+        return np.nan
+    if sigma < 0:
+        return np.nan
+    if sigma == 0:
+        return 1_000_000.0 if mean < lsl or mean > usl else 0.0
+    z_usl = (usl - mean) / sigma
+    z_lsl = (lsl - mean) / sigma
+    prob_above = 1 - calc.standard_normal_cdf(z_usl)
+    prob_below = calc.standard_normal_cdf(z_lsl)
+    return float((prob_above + prob_below) * 1e6)
+
+
+def _build_ewma(values, alpha):
+    values = np.asarray(values, dtype=float)
+    if len(values) == 0:
+        return np.array([])
+    smoothed = [float(values[0])]
+    for value in values[1:]:
+        smoothed.append(alpha * float(value) + (1 - alpha) * smoothed[-1])
+    return np.asarray(smoothed, dtype=float)
+
+
+def compute_predictive_health_from_series(
+    data_points,
+    tm,
+    lsl,
+    usl,
+    target_index,
+    horizon=10,
+    recent_points=40,
+    subgroup_size=5,
+    ewma_alpha=0.35,
+):
+    numeric_values = pd.to_numeric(pd.Series(data_points), errors="coerce").dropna().tolist()
+    if len(numeric_values) < max(subgroup_size * 3, 12):
+        return None
+
+    effective_points = numeric_values[-max(recent_points, subgroup_size * 3):]
+    subgroup_size = max(3, min(int(subgroup_size), len(effective_points) // 3))
+    if len(effective_points) < subgroup_size * 3:
+        return None
+
+    point_index = np.arange(1, len(effective_points) + 1)
+    ewma_series = _build_ewma(effective_points, ewma_alpha)
+    mean_slope, mean_intercept = _predictive_linear_regression(ewma_series)
+
+    group_rows = []
+    for start in range(0, len(effective_points) - subgroup_size + 1):
+        subgroup = effective_points[start : start + subgroup_size]
+        group_mean = float(np.mean(subgroup))
+        group_sigma = float(np.std(subgroup, ddof=1)) if len(subgroup) >= 2 else 0.0
+        group_cpk = _predictive_capability(group_mean, group_sigma, lsl, usl)
+        group_rows.append(
+            {
+                "group_no": len(group_rows) + 1,
+                "mean_value": group_mean,
+                "sigma_value": group_sigma,
+                "cpk_value": group_cpk,
+            }
+        )
+
+    subgroup_df = pd.DataFrame(group_rows)
+    subgroup_df = subgroup_df.tail(max(4, min(len(subgroup_df), 12))).reset_index(drop=True)
+    sigma_slope, sigma_intercept = _predictive_linear_regression(subgroup_df["sigma_value"].tolist())
+    current_mean = float(np.mean(effective_points))
+    current_sigma = float(np.std(effective_points, ddof=1))
+    current_cpk = _predictive_capability(current_mean, current_sigma, lsl, usl)
+
+    future_indices = np.arange(len(effective_points) + 1, len(effective_points) + horizon + 1)
+    forecast_points = mean_intercept + mean_slope * (future_indices - 1)
+    predicted_mean = float(forecast_points[-1])
+    predicted_sigma = max(0.0, sigma_intercept + sigma_slope * (len(subgroup_df) - 1 + horizon))
+    predicted_cpk = _predictive_capability(predicted_mean, predicted_sigma, lsl, usl)
+    future_ppm = _predictive_ppm(predicted_mean, predicted_sigma, lsl, usl)
+
+    sigma_avg = float(subgroup_df["sigma_value"].mean()) if not subgroup_df.empty else np.nan
+    risk_score = 0.0
+    if np.isfinite(predicted_cpk):
+        if predicted_cpk < 1.0:
+            risk_score += 55
+        elif predicted_cpk < 1.33:
+            risk_score += 35
+        elif predicted_cpk < target_index:
+            risk_score += 20
+    else:
+        risk_score += 25
+    if np.isfinite(current_cpk) and np.isfinite(predicted_cpk) and predicted_cpk < current_cpk:
+        risk_score += min(20, max(0, (current_cpk - predicted_cpk) * 12))
+    if np.isfinite(sigma_slope) and np.isfinite(sigma_avg) and sigma_avg > 0:
+        risk_score += min(15, max(0, (sigma_slope / sigma_avg) * 120))
+    if np.isfinite(mean_slope) and np.isfinite(sigma_avg) and sigma_avg > 0:
+        risk_score += min(10, abs(mean_slope) / sigma_avg * 8)
+    if np.isfinite(future_ppm):
+        if future_ppm > 5000:
+            risk_score += 25
+        elif future_ppm > 500:
+            risk_score += 15
+        elif future_ppm > 50:
+            risk_score += 8
+    risk_score = int(max(0, min(100, round(risk_score))))
+
+    if risk_score >= 70 or (np.isfinite(predicted_cpk) and predicted_cpk < 1.0):
+        health_label = "Critical"
+        health_delta = "inverse"
+    elif risk_score >= 45 or (np.isfinite(predicted_cpk) and predicted_cpk < 1.33):
+        health_label = "At Risk"
+        health_delta = "off"
+    elif risk_score >= 25 or (np.isfinite(predicted_cpk) and predicted_cpk < target_index):
+        health_label = "Watch"
+        health_delta = "normal"
+    else:
+        health_label = "Stable"
+        health_delta = "normal"
+
+    recommendations = []
+    if health_label in {"Critical", "At Risk"}:
+        recommendations.append("Check machine offset, tooling wear, fixture condition, and the last setup change before the next batch.")
+        recommendations.append("Increase sampling frequency and review whether one station, cavity, or tool is driving the drift.")
+    if np.isfinite(sigma_slope) and sigma_slope > 0:
+        recommendations.append("Variation is increasing. Review clamping, measurement repeatability, and process stability.")
+    if np.isfinite(predicted_mean) and np.isfinite(tm) and np.isfinite(predicted_sigma) and abs(predicted_mean - tm) > predicted_sigma:
+        recommendations.append("Centering drift is visible. Plan a controlled offset correction toward the target mean.")
+    if np.isfinite(future_ppm) and future_ppm > 500:
+        recommendations.append("Future defect exposure is elevated. Hold for capability review before full production release.")
+    if not recommendations:
+        recommendations.append("Process forecast is healthy. Keep current settings and continue routine capability verification.")
+        recommendations.append("Use the forecast as an early warning and confirm it with fresh production data each shift or batch.")
+
+    return {
+        "point_series": effective_points,
+        "point_index": point_index,
+        "ewma_series": ewma_series,
+        "subgroup_df": subgroup_df,
+        "forecast_points": forecast_points,
+        "forecast_index": future_indices,
+        "predicted_mean": float(predicted_mean),
+        "predicted_sigma": float(predicted_sigma),
+        "predicted_cpk": float(predicted_cpk) if np.isfinite(predicted_cpk) else np.nan,
+        "future_ppm": float(future_ppm) if np.isfinite(future_ppm) else np.nan,
+        "current_cpk": current_cpk,
+        "current_mean": current_mean,
+        "current_sigma": current_sigma,
+        "target_mean": float(tm),
+        "target_index": float(target_index),
+        "lsl": float(lsl),
+        "usl": float(usl),
+        "mean_slope": float(mean_slope),
+        "sigma_slope": float(sigma_slope),
+        "risk_score": risk_score,
+        "health_label": health_label,
+        "health_delta": health_delta,
+        "recommendations": recommendations,
+        "subgroup_size": subgroup_size,
+        "recent_points": len(effective_points),
+    }
+
+
+def sync_ai_selector_to_active_characteristic():
+    st.session_state.ai_characteristic_selector = st.session_state.get(
+        "active_characteristic_name", "Characteristic 1"
+    )
+
+
+def set_ui_theme(theme_name):
+    st.session_state.ui_theme = theme_name
+    try:
+        st.query_params["theme"] = theme_name.lower()
+    except Exception:
+        pass
+
+# --- Main App UI ---
+st.markdown(
+    """
+    <div class="app-shell">
+        <h1 class="app-shell-title">Statistical Process Capability & AI Data Analytics</h1>
+        <div class="app-shell-subtitle">Capability analysis, worksheet intelligence, predictive health, and production-ready quality interpretation.</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
+
+# Define Tabs + Theme Control Row
+nav_cols = st.columns([6.0, 0.28], gap="small")
+with nav_cols[0]:
+    tab_analysis, tab_data, tab_viz, tab_ai, tab_history, tab_ref = st.tabs(
+        ["Analysis & Report", "Data Worksheet", "Visualization", "AI Predictive Health", "History", "Reference"]
+    )
+with nav_cols[1]:
+    st.markdown('<div class="nav-theme-wrap">', unsafe_allow_html=True)
+    with st.popover("🎨", help="Change theme", use_container_width=False):
+        st.markdown('<div class="theme-popover-title">Theme</div>', unsafe_allow_html=True)
+        st.markdown('<div class="theme-popover-grid">', unsafe_allow_html=True)
+        for theme_name, theme_icon in [("Midnight", "🌙"), ("Graphite", "◼"), ("Light", "☀")]:
+            button_type = "primary" if st.session_state.get("ui_theme") == theme_name else "secondary"
+            st.button(
+                f"{theme_icon} {theme_name}",
+                key=f"theme_btn_{theme_name.lower()}",
+                type=button_type,
+                use_container_width=True,
+                on_click=set_ui_theme,
+                args=(theme_name,),
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Tab 1: Analysis & Report ---
 with tab_analysis:
@@ -2919,7 +3786,7 @@ with tab_analysis:
 
     # --- Characteristic Selector ---
     char_names = list(st.session_state.characteristics.keys())
-    selector_cols = st.columns([2, 1])
+    selector_cols = st.columns([0.92, 0.44, 1.84], gap="medium")
     with selector_cols[0]:
         selected_char = st.selectbox(
             "Active Characteristic",
@@ -2932,7 +3799,17 @@ with tab_analysis:
             set_active_characteristic(selected_char)
             st.rerun()
     with selector_cols[1]:
-        st.metric("Total Characteristics", len(char_names))
+        st.markdown(
+            f"""
+            <div class="selector-metric-card">
+                <div class="selector-metric-copy">
+                    <div class="selector-metric-label">Total Characteristics</div>
+                    <div class="selector-metric-value">{len(char_names)}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
     active_characteristic = st.session_state.active_characteristic_name
 
@@ -3022,18 +3899,21 @@ with tab_analysis:
                         f"⚠️ No valid data in worksheet for `{active_characteristic}`. Go to the **Data Worksheet** tab to enter values."
                     )
 
-            st.number_input(
-                "Target Index",
-                step=0.01,
-                key="target_index_value",
-                help="The minimum capability value (e.g., Cpk 1.67) you aim for your process to achieve.",
-            )
-            st.selectbox(
-                "Index Type",
-                ["Cpk", "Cmk", "Ppk"],
-                key="target_index_type",
-                help="Capability Index Type: Cpk (short-term) or Ppk (long-term).",
-            )
+            goal_cols = st.columns([1, 1])
+            with goal_cols[0]:
+                st.number_input(
+                    "Target Index",
+                    step=0.01,
+                    key="target_index_value",
+                    help="The minimum capability value (e.g., Cpk 1.67) you aim for your process to achieve.",
+                )
+            with goal_cols[1]:
+                st.selectbox(
+                    "Index Type",
+                    ["Cpk", "Cmk", "Ppk"],
+                    key="target_index_type",
+                    help="Capability Index Type: Cpk (short-term) or Ppk (long-term).",
+                )
 
         with st.container(border=True):
             st.subheader("3. Statistical Settings")
@@ -3784,6 +4664,25 @@ with tab_viz:
         "Show Annotations", value=True, key="show_annotations"
     )
 
+    # Export Report Button
+    viz_char_names = list(st.session_state.characteristics.keys())
+    if len(viz_char_names) > 0:
+        st.markdown("<br>", unsafe_allow_html=True)
+        col1, col2 = st.columns([1, 4])
+        with col1:
+            try:
+                excel_data = generate_full_report_excel(st.session_state.characteristics)
+                st.download_button(
+                    label="📥 Export Full Report (Excel)",
+                    data=excel_data,
+                    file_name=f"SPC_Full_Report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    type="primary"
+                )
+            except Exception as e:
+                st.error(f"Kaleido missing for export: {e}. Run pip install kaleido")
+
     # Dynamic sub-tabs for each characteristic
     viz_char_names = list(st.session_state.characteristics.keys())
     if len(viz_char_names) == 0:
@@ -3825,7 +4724,11 @@ with tab_viz:
                             height=300,
                             margin=dict(l=40, r=20, t=50, b=40),
                             showlegend=False,
-                            template="plotly_white",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color=_plot_font),
+                            xaxis=dict(gridcolor=_plot_grid, linecolor=_plot_line),
+                            yaxis=dict(gridcolor=_plot_grid, linecolor=_plot_line),
                         )
                         st.plotly_chart(
                             fig_hist_preview,
@@ -3849,7 +4752,11 @@ with tab_viz:
                             height=300,
                             margin=dict(l=40, r=20, t=50, b=40),
                             showlegend=False,
-                            template="plotly_white",
+                            paper_bgcolor="rgba(0,0,0,0)",
+                            plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color=_plot_font),
+                            xaxis=dict(gridcolor=_plot_grid, linecolor=_plot_line),
+                            yaxis=dict(gridcolor=_plot_grid, linecolor=_plot_line),
                         )
                         st.plotly_chart(
                             fig_box, use_container_width=True, config=PlotManager.PLOT_CONFIG,
@@ -4045,7 +4952,7 @@ with tab_viz:
                                 )
                             )
 
-                        _fc = "#8b95a5"
+                        _fc = _plot_font
 
                         # Right-side zone annotations
                         zone_annotations = [
@@ -4080,14 +4987,16 @@ with tab_viz:
                             hovermode="x unified",
                             xaxis=dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
                                        tickfont=dict(size=10, color=_fc),
-                                       gridcolor="rgba(128,128,128,0.15)"),
+                                       gridcolor=_plot_grid,
+                                       linecolor=_plot_line),
                             yaxis=dict(title=dict(text="Value", font=dict(color=_fc, size=11)),
                                        tickfont=dict(size=10, color=_fc),
-                                       gridcolor="rgba(128,128,128,0.15)"),
+                                       gridcolor=_plot_grid,
+                                       linecolor=_plot_line),
                             legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
-                                        bgcolor="rgba(128,128,128,0.08)", font=dict(size=9, color=_fc)),
-                            hoverlabel=dict(font_size=11, bgcolor="rgba(30,41,59,0.92)",
-                                            font_color="#e2e8f0", bordercolor="rgba(128,128,128,0.3)"),
+                                        bgcolor=_plot_legend_bg, font=dict(size=9, color=_fc), bordercolor=_plot_line, borderwidth=1),
+                            hoverlabel=dict(font_size=11, bgcolor=_plot_hover_bg,
+                                            font_color=_plot_hover_text, bordercolor=_plot_line),
                             paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                             font=dict(color=_fc),
                         )
@@ -4237,10 +5146,12 @@ with tab_viz:
                             **{**_ctrl_layout,
                                "xaxis": dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
                                              tickfont=dict(size=10, color=_fc),
-                                             gridcolor="rgba(128,128,128,0.15)"),
+                                             gridcolor=_plot_grid,
+                                             linecolor=_plot_line),
                                "yaxis": dict(title=dict(text="Moving Range |Xᵢ − Xᵢ₋₁|", font=dict(color=_fc, size=11)),
                                              tickfont=dict(size=10, color=_fc),
-                                             gridcolor="rgba(128,128,128,0.15)")},
+                                             gridcolor=_plot_grid,
+                                             linecolor=_plot_line)},
                         )
 
                         st.plotly_chart(fig_mr, use_container_width=True, config=PlotManager.PLOT_CONFIG,
@@ -4253,7 +5164,401 @@ with tab_viz:
 
 
 
-# --- Tab 4: History ---
+# --- Tab 4: AI Predictive Health ---
+with tab_ai:
+    st.header("AI Predictive Health")
+    st.caption(
+        "Forecast future characteristic health directly from the worksheet/visualization data sequence for each characteristic."
+    )
+    characteristic_names = list(st.session_state.characteristics.keys())
+    if "ai_prediction_result" not in st.session_state:
+        st.session_state.ai_prediction_result = None
+
+    if not characteristic_names:
+        st.info("No characteristics available. Add data in the worksheet first.")
+    else:
+        if "ai_characteristic_selector" not in st.session_state:
+            st.session_state.ai_characteristic_selector = st.session_state.active_characteristic_name
+
+        st.markdown(
+            """
+            <div class="ai-settings-note">
+            <b>AI Forecast Controls:</b> Run the forecast after changing settings. Use fewer visible controls per row to avoid overlap on smaller screens.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        settings_cols = st.columns([1.8, 1.2])
+        with settings_cols[0]:
+            selected_prediction_characteristic = st.selectbox(
+                "Characteristic",
+                characteristic_names,
+                index=characteristic_names.index(st.session_state.ai_characteristic_selector)
+                if st.session_state.ai_characteristic_selector in characteristic_names
+                else 0,
+                key="ai_characteristic_selector",
+                help="Choose which characteristic from the visualization data should be used for forecasting.",
+            )
+            st.caption("Pick the characteristic whose worksheet/visualization data should drive the forecast.")
+        with settings_cols[1]:
+            forecast_horizon = st.slider(
+                "Forecast Parts",
+                3,
+                40,
+                10,
+                key="ai_forecast_parts",
+                help="How many future parts to forecast.",
+            )
+            st.caption("Increase for longer look-ahead. Decrease for a more reliable short-term forecast.")
+
+        settings_cols_b = st.columns(2)
+        with settings_cols_b[0]:
+            recent_points = st.slider(
+                "Recent Points Used",
+                12,
+                200,
+                40,
+                key="ai_recent_points",
+                help="Number of latest worksheet points used by the forecast.",
+            )
+            st.caption("Use `30-60` for stable processes. Lower reacts faster; higher smooths more.")
+        with settings_cols_b[1]:
+            subgroup_size = st.slider(
+                "Subgroup Size",
+                3,
+                15,
+                5,
+                key="ai_subgroup_size",
+                help="Window size used to estimate rolling sigma and Cpk behavior.",
+            )
+            st.caption("Use `4-5` for dimensional data. Lower is more sensitive; higher is smoother.")
+
+        advanced_cols = st.columns(2)
+        with advanced_cols[0]:
+            ewma_alpha = st.slider(
+                "EWMA Smoothing",
+                0.10,
+                0.90,
+                0.35,
+                0.05,
+                key="ai_ewma_alpha",
+                help="Higher values react faster to recent shifts; lower values smooth more strongly.",
+            )
+            st.caption("Start near `0.30-0.40`. Increase for faster response, decrease to filter noise.")
+        with advanced_cols[1]:
+            target_cpk_override = st.number_input(
+                "AI Target Cpk",
+                min_value=0.5,
+                max_value=3.0,
+                value=float(
+                    st.session_state.characteristics[selected_prediction_characteristic].get(
+                        "target_index_value", 1.33
+                    )
+                ),
+                step=0.01,
+                key="ai_target_cpk_override",
+                help="Threshold the AI forecast should treat as the desired future capability.",
+            )
+            st.caption("This is the future capability goal. Typical values are `1.33` or `1.67`.")
+
+        advanced_cols_b = st.columns(2)
+        with advanced_cols_b[0]:
+            warning_ppm_limit = st.number_input(
+                "Warning PPM Limit",
+                min_value=10,
+                max_value=100000,
+                value=500,
+                step=10,
+                key="ai_warning_ppm_limit",
+                help="Reference value shown in the summary to judge future defect exposure.",
+            )
+            st.caption("Use your internal defect-risk threshold. Lower values make the AI more conservative.")
+        with advanced_cols_b[1]:
+            st.markdown(
+                """
+                <div class="ai-summary-card">
+                <b>Quick Start</b>
+                <ul>
+                <li><b>Forecast Parts:</b> 8-12</li>
+                <li><b>Recent Points Used:</b> 30-60</li>
+                <li><b>Subgroup Size:</b> 4-5</li>
+                <li><b>EWMA:</b> 0.30-0.40</li>
+                </ul>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        with st.expander("How to set the AI forecast values"):
+            st.markdown(
+                """
+- **Forecast Parts**: how many future parts the line should extend. If you set `10`, the chart will add 10 future x-axis points.
+- **Recent Points Used**: how much recent worksheet data the model reads. Start with `30-60` for a stable process.
+- **Subgroup Size**: how many consecutive parts are grouped to estimate rolling sigma/Cpk. Use `4-5` for normal dimensional data; larger values smooth more.
+- **EWMA Smoothing**: higher values react more to the latest drift. Start near `0.30-0.40`.
+- **AI Target Cpk**: the future capability goal the forecast is judged against. Typical starting point is `1.33` or `1.67`.
+- **Warning PPM Limit**: your internal risk threshold for future defect exposure.
+
+The headline **Future Mean** now matches the **last forecast point** on the chart, so the number and the plotted forecast should align.
+                """
+            )
+
+        action_cols = st.columns([1, 1, 1, 2])
+        with action_cols[0]:
+            st.button(
+                "Use Active Characteristic",
+                use_container_width=True,
+                on_click=sync_ai_selector_to_active_characteristic,
+            )
+        with action_cols[1]:
+            run_ai = st.button("Run AI Forecast", type="primary", use_container_width=True)
+        with action_cols[2]:
+            if st.button("Reset AI Output", use_container_width=True):
+                st.session_state.ai_prediction_result = None
+                st.rerun()
+
+        selected_state = st.session_state.characteristics[selected_prediction_characteristic]
+        worksheet_df = selected_state.get("worksheet_data")
+        ai_data_points = []
+        if isinstance(worksheet_df, pd.DataFrame) and "Value" in worksheet_df.columns:
+            ai_data_points = pd.to_numeric(worksheet_df["Value"], errors="coerce").dropna().tolist()
+        ai_results = selected_state.get("results", {})
+        if not ai_data_points:
+            ai_data_points = ai_results.get("importedData", []) if ai_results else []
+
+        if run_ai:
+            prediction = compute_predictive_health_from_series(
+                ai_data_points,
+                tm=float(selected_state.get("tm", np.nan)),
+                lsl=float(selected_state.get("lsl", np.nan)),
+                usl=float(selected_state.get("usl", np.nan)),
+                target_index=float(target_cpk_override),
+                horizon=int(forecast_horizon),
+                recent_points=int(recent_points),
+                subgroup_size=int(subgroup_size),
+                ewma_alpha=float(ewma_alpha),
+            )
+            st.session_state.ai_prediction_result = {
+                "characteristic": selected_prediction_characteristic,
+                "settings": {
+                    "forecast_horizon": int(forecast_horizon),
+                    "recent_points": int(recent_points),
+                    "subgroup_size": int(subgroup_size),
+                    "ewma_alpha": float(ewma_alpha),
+                    "target_cpk": float(target_cpk_override),
+                    "warning_ppm_limit": int(warning_ppm_limit),
+                },
+                "prediction": prediction,
+            }
+
+        st.info(
+            f"Data source: **Visualization / Worksheet sequence** for **{selected_prediction_characteristic}**. "
+            f"Valid points available: **{len(ai_data_points)}**."
+        )
+
+        stored_ai = st.session_state.get("ai_prediction_result")
+        if (
+            not stored_ai
+            or stored_ai.get("characteristic") != selected_prediction_characteristic
+        ):
+            st.warning("Choose settings and click **Run AI Forecast** to generate a prediction from the current characteristic data.")
+        else:
+            prediction = stored_ai.get("prediction")
+            settings = stored_ai.get("settings", {})
+            if prediction is None:
+                st.warning(
+                    "Need more usable visualization data. Add at least 12 valid worksheet points and keep subgroup size small enough for multiple windows."
+                )
+            else:
+                dp = int(selected_state.get("decimal_places", 3) or 3)
+                top_metrics = st.columns(4)
+                with top_metrics[0]:
+                    st.metric(
+                        "Predicted Health",
+                        prediction["health_label"],
+                        delta=f"Risk score {prediction['risk_score']}/100",
+                        delta_color=prediction["health_delta"],
+                    )
+                with top_metrics[1]:
+                    cpk_delta = None
+                    if np.isfinite(prediction["predicted_cpk"]) and np.isfinite(prediction["current_cpk"]):
+                        cpk_delta = f"{prediction['predicted_cpk'] - prediction['current_cpk']:+.{dp}f}"
+                    st.metric(
+                        "Future Cpk",
+                        f"{prediction['predicted_cpk']:.{dp}f}" if np.isfinite(prediction["predicted_cpk"]) else "—",
+                        delta=cpk_delta,
+                        delta_color="inverse",
+                    )
+                with top_metrics[2]:
+                    mean_delta = None
+                    if np.isfinite(prediction["predicted_mean"]) and np.isfinite(prediction["target_mean"]):
+                        mean_delta = f"{prediction['predicted_mean'] - prediction['target_mean']:+.{dp}f} vs Tₘ"
+                    st.metric(
+                        "Future Mean",
+                        f"{prediction['predicted_mean']:.{dp}f}" if np.isfinite(prediction["predicted_mean"]) else "—",
+                        delta=mean_delta,
+                    )
+                with top_metrics[3]:
+                    ppm_delta = f"{prediction['future_ppm']:.0f} PPM risk" if np.isfinite(prediction["future_ppm"]) else None
+                    st.metric(
+                        "Future Sigma",
+                        f"{prediction['predicted_sigma']:.{dp + 1}f}" if np.isfinite(prediction["predicted_sigma"]) else "—",
+                        delta=ppm_delta,
+                        delta_color="inverse",
+                    )
+
+                summary_cols = st.columns([1.7, 1])
+                with summary_cols[0]:
+                    y_candidates = list(prediction["point_series"]) + list(prediction["forecast_points"])
+                    if np.isfinite(prediction["target_mean"]):
+                        y_candidates.append(prediction["target_mean"])
+                    if np.isfinite(prediction["lsl"]):
+                        y_candidates.append(prediction["lsl"])
+                    if np.isfinite(prediction["usl"]):
+                        y_candidates.append(prediction["usl"])
+                    y_min = min(y_candidates) if y_candidates else 0
+                    y_max = max(y_candidates) if y_candidates else 1
+                    y_pad = max((y_max - y_min) * 0.18, 0.02)
+
+                    fig_predict = go.Figure()
+                    fig_predict.add_trace(
+                        go.Scatter(
+                            x=prediction["point_index"],
+                            y=prediction["point_series"],
+                            mode="lines+markers",
+                            name="Actual Values",
+                            line=dict(color="#94A3B8", width=1.5),
+                            marker=dict(size=5),
+                        )
+                    )
+                    fig_predict.add_trace(
+                        go.Scatter(
+                            x=prediction["point_index"],
+                            y=prediction["ewma_series"],
+                            mode="lines",
+                            name="EWMA Trend",
+                            line=dict(color="#0F766E", width=3),
+                        )
+                    )
+                    fig_predict.add_trace(
+                        go.Scatter(
+                            x=prediction["forecast_index"],
+                            y=prediction["forecast_points"],
+                            mode="lines+markers",
+                            name="Forecast Values",
+                            line=dict(color="#14B8A6", width=3, dash="dot"),
+                            marker=dict(size=7, symbol="diamond"),
+                        )
+                    )
+                    if np.isfinite(prediction["target_mean"]):
+                        fig_predict.add_hline(
+                            y=prediction["target_mean"],
+                            line_dash="dash",
+                            line_color="#F97316",
+                            annotation_text="Target Mean",
+                            annotation_position="top left",
+                        )
+                    if np.isfinite(prediction["lsl"]):
+                        fig_predict.add_hline(
+                            y=prediction["lsl"],
+                            line_dash="dot",
+                            line_color="#DC2626",
+                            annotation_text="LSL",
+                            annotation_position="bottom left",
+                        )
+                    if np.isfinite(prediction["usl"]):
+                        fig_predict.add_hline(
+                            y=prediction["usl"],
+                            line_dash="dot",
+                            line_color="#DC2626",
+                            annotation_text="USL",
+                            annotation_position="top right",
+                        )
+                    fig_predict.update_layout(
+                        title=f"Visualization-Based Forecast — {selected_prediction_characteristic}",
+                        height=420,
+                        margin=dict(t=85, b=90, l=50, r=40),
+                        xaxis=dict(title="Part / Sequence Number", gridcolor=_plot_grid, linecolor=_plot_line, tickfont=dict(color=_plot_font)),
+                        yaxis=dict(title="Characteristic Value", range=[y_min - y_pad, y_max + y_pad], gridcolor=_plot_grid, linecolor=_plot_line, tickfont=dict(color=_plot_font)),
+                        title_font=dict(size=18),
+                        legend=dict(
+                            orientation="h",
+                            y=-0.28,
+                            x=0.5,
+                            xanchor="center",
+                            font=dict(size=11),
+                            itemwidth=70,
+                            bgcolor=_plot_legend_bg,
+                            bordercolor=_plot_line,
+                            borderwidth=1,
+                        ),
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        font=dict(color=_plot_font),
+                        hoverlabel=dict(bgcolor=_plot_hover_bg, font_color=_plot_hover_text, bordercolor=_plot_line),
+                    )
+                    st.plotly_chart(
+                        fig_predict,
+                        use_container_width=True,
+                        config=PlotManager.PLOT_CONFIG,
+                        key=f"predictive_health_{selected_prediction_characteristic}",
+                    )
+
+                with summary_cols[1]:
+                    st.subheader("AI Run Summary")
+                    summary_lines = [
+                        f"<p><b>{selected_prediction_characteristic}</b> is forecast as <b>{prediction['health_label']}</b> over the next <b>{settings.get('forecast_horizon', forecast_horizon)}</b> part(s), using the latest <b>{prediction['recent_points']}</b> worksheet points.</p>",
+                        f"<p>The chart forecast starts after part <b>{int(prediction['point_index'][-1])}</b> and ends at part <b>{int(prediction['forecast_index'][-1])}</b>.</p>",
+                    ]
+                    if np.isfinite(prediction["predicted_mean"]) and np.isfinite(prediction["target_mean"]):
+                        summary_lines.append(
+                            f"<p>Final forecast value: <b>{prediction['predicted_mean']:.{dp}f}</b> vs target <b>{prediction['target_mean']:.{dp}f}</b>.</p>"
+                        )
+                    if np.isfinite(prediction["predicted_cpk"]):
+                        summary_lines.append(
+                            f"<p>Forecast Cpk: <b>{prediction['predicted_cpk']:.{dp}f}</b> vs AI target <b>{settings.get('target_cpk', target_cpk_override):.2f}</b>.</p>"
+                        )
+                    if np.isfinite(prediction["future_ppm"]):
+                        ppm_limit = settings.get("warning_ppm_limit", warning_ppm_limit)
+                        summary_lines.append(
+                            f"<p>Future defect risk: <b>{prediction['future_ppm']:.0f} PPM</b> (warning limit: <b>{ppm_limit} PPM</b>).</p>"
+                        )
+                    recommendations_html = "".join(f"<li>{item}</li>" for item in prediction["recommendations"])
+                    st.markdown(
+                        f"""
+                        <div class="ai-summary-card">
+                        {''.join(summary_lines)}
+                        <b>Recommended Actions</b>
+                        <ul>{recommendations_html}</ul>
+                        </div>
+                        """,
+                        unsafe_allow_html=True,
+                    )
+
+                basis_cols = st.columns(5)
+                with basis_cols[0]:
+                    st.metric("Source Points Used", prediction["recent_points"])
+                with basis_cols[1]:
+                    st.metric("Subgroup Size", prediction["subgroup_size"])
+                with basis_cols[2]:
+                    st.metric(
+                        "Mean Drift / Part",
+                        f"{prediction['mean_slope']:+.{dp + 1}f}" if np.isfinite(prediction["mean_slope"]) else "—",
+                    )
+                with basis_cols[3]:
+                    st.metric(
+                        "Sigma Drift / Window",
+                        f"{prediction['sigma_slope']:+.{dp + 2}f}" if np.isfinite(prediction["sigma_slope"]) else "—",
+                    )
+                with basis_cols[4]:
+                    st.metric(
+                        "Current Cpk",
+                        f"{prediction['current_cpk']:.{dp}f}" if np.isfinite(prediction["current_cpk"]) else "—",
+                    )
+
+
+# --- Tab 5: History ---
 with tab_history:
     st.header("Analysis History (Last 250 Runs)")
     st.caption('History is logged only when you click the "ANALYZE & PLOT" button.')
@@ -4300,12 +5605,13 @@ with tab_history:
                                 annotation_text="Min (1.33)", annotation_position="bottom right")
             fig_trend.add_hline(y=1.67, line_dash="dash", line_color="#10B981",
                                 annotation_text="Target (1.67)", annotation_position="top right")
-            _fc = "#8b95a5"
+            _fc = _plot_font
             fig_trend.update_layout(
                 height=280, margin=dict(t=30, b=50, l=50, r=30),
-                xaxis=dict(title="Run Date", tickfont=dict(size=10, color=_fc), gridcolor="rgba(128,128,128,0.15)"),
-                yaxis=dict(title="Cpk", tickfont=dict(size=10, color=_fc), gridcolor="rgba(128,128,128,0.15)"),
+                xaxis=dict(title="Run Date", tickfont=dict(size=10, color=_fc), gridcolor=_plot_grid, linecolor=_plot_line),
+                yaxis=dict(title="Cpk", tickfont=dict(size=10, color=_fc), gridcolor=_plot_grid, linecolor=_plot_line),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font=dict(color=_fc),
+                hoverlabel=dict(bgcolor=_plot_hover_bg, font_color=_plot_hover_text, bordercolor=_plot_line),
                 showlegend=False,
             )
             st.plotly_chart(fig_trend, use_container_width=True, config=PlotManager.PLOT_CONFIG)
@@ -4575,8 +5881,20 @@ This tool performs a **Z-test** to determine if μ ≠ Tₘ:
             with st.chat_message("user"):
                 st.markdown(prompt)
 
-            # Get bot response
-            response = bot.get_response(prompt)
+            # Get active characteristic context
+            context_data = None
+            if hasattr(st.session_state, "characteristics") and st.session_state.characteristics:
+                # Get the first available characteristic for context
+                first_char_name = list(st.session_state.characteristics.keys())[0]
+                char_data = st.session_state.characteristics[first_char_name]
+                context_data = {
+                    "name": first_char_name,
+                    "stats": char_data.get("results", {}),
+                    "failed_rules": char_data.get("failed_rules", [])
+                }
+            
+            # Get bot response with context
+            response = bot.get_response(prompt, context_data=context_data)
 
             # Add bot response to chat history
             with st.chat_message("assistant"):

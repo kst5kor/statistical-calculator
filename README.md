@@ -1,6 +1,6 @@
-# Statistical Process Capability Tool
+# Statistical Process Capability & AI Data Analytics
 
-Single-characteristic Streamlit app for automotive dimensional capability analysis.
+Streamlit app for automotive dimensional capability analysis, worksheet-driven visualization, and predictive health review.
 
 ## What This App Does
 
@@ -8,6 +8,7 @@ Single-characteristic Streamlit app for automotive dimensional capability analys
 - Calculate capability metrics such as `Cp`, `Cpk`, `PPM`, required shift, and required tolerance
 - Visualize process distribution, box plot, capability plots, and control chart
 - Keep a local run history for repeated studies
+- Switch between UI themes and use the AI forecast page for short-horizon characteristic health prediction
 
 This version is focused on automotive part manufacturing data and normal-process dimensional capability analysis.
 
@@ -22,6 +23,7 @@ This version is focused on automotive part manufacturing data and normal-process
 | `Setup_Windows.bat` | Windows first-time setup |
 | `Setup_Guide.pdf` | Printable user setup guide |
 | `launcher.py` | Alternate launcher for packaged app flows |
+| `.gitignore` | Git-safe exclusions for local env/build artifacts |
 
 ## Local Run
 
@@ -32,7 +34,7 @@ cd /path/to/py
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-streamlit run "import streamlit as st.py" --server.port 5180
+./start.sh
 ```
 
 Open: [http://localhost:5180](http://localhost:5180)
@@ -77,6 +79,47 @@ Recommended default:
 5. Validate against a known sample part dataset
 6. Merge only reviewed changes into the shared branch
 
+## Ready For Git Push
+
+This project repo lives in:
+
+`/Users/kanagasenthilraja/Documents/Archieve/Statistical Calculator/py`
+
+Before pushing:
+
+1. Review local changes
+```bash
+git status
+```
+
+2. Stage the project files
+```bash
+git add .
+```
+
+3. Commit
+```bash
+git commit -m "Update SPC app UI, theming, and predictive workflow"
+```
+
+4. Push
+```bash
+git push
+```
+
+Notes:
+
+- `.venv/`, `dist/`, `build/`, `__pycache__/`, `.DS_Store`, and other local artifacts are ignored
+- the top-level folder outside `py/` is not the Git repo
+- if you want a safer review flow, create a branch first:
+
+```bash
+git checkout -b codex/spc-ui-cleanup
+git add .
+git commit -m "Update SPC app UI, theming, and predictive workflow"
+git push -u origin codex/spc-ui-cleanup
+```
+
 ## Deployment Notes
 
 For an internal shared deployment, run:
@@ -95,9 +138,10 @@ Then publish the host URL inside your company network.
 | Port 5180 already in use | Change the port in the launch command or start script |
 | Browser does not open | Open [http://localhost:5180](http://localhost:5180) manually |
 | App seems stale after edits | Stop and restart Streamlit |
+| Theme resets on refresh | Use the in-app theme control; the theme is now persisted in the URL |
 
 ## Requirements
 
 - Python 3.10 or higher
-- Modern browser https://statistical-calculator-xeo9jqdqkculy7wgfaofee.streamlit.app/
+- Modern browser
 - Local network access only if you plan to share it on an internal server

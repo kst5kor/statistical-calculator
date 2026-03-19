@@ -12,6 +12,9 @@ ENV/
 build/
 dist/
 *.egg-info/
+*.exe
+*.app
+*.dmg
 
 # PyInstaller
 *.spec
@@ -30,3 +33,10 @@ Thumbs.db
 
 # Local config
 .streamlit/
+
+# Python caches / test / local artifacts
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
