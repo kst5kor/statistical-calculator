@@ -2799,678 +2799,65 @@ st.set_page_config(
     menu_items={"Get Help": None, "Report a bug": None, "About": None},
 )
 
-_theme_lookup = {name.lower(): name for name in THEME_PRESETS}
-try:
-    _theme_from_query = st.query_params.get("theme", "").strip().lower()
-except Exception:
-    _theme_from_query = ""
-
-if _theme_from_query in _theme_lookup:
-    st.session_state.ui_theme = _theme_lookup[_theme_from_query]
-elif "ui_theme" not in st.session_state:
-    st.session_state.ui_theme = "Midnight"
-    try:
-        st.query_params["theme"] = "midnight"
-    except Exception:
-        pass
-
-_theme = THEME_PRESETS.get(st.session_state.get("ui_theme", "Midnight"), THEME_PRESETS["Midnight"])
-_is_light_theme = st.session_state.get("ui_theme", "Midnight") == "Light"
-_soft_bg = "#e8f0fa" if _is_light_theme else "rgba(255,255,255,0.05)"
-_soft_bg_hover = "#dbe8f8" if _is_light_theme else "rgba(255,255,255,0.08)"
-_disabled_bg = "#e2e8f0" if _is_light_theme else "#1f2937"
-_disabled_text = "#475569" if _is_light_theme else "#7b879a"
-_alert_info_bg = "#dbeafe" if _is_light_theme else "rgba(59,130,246,0.16)"
-_alert_warn_bg = "#fef3c7" if _is_light_theme else "rgba(245,158,11,0.18)"
-_alert_success_bg = "#dcfce7" if _is_light_theme else "rgba(34,197,94,0.16)"
-_alert_error_bg = "#fee2e2" if _is_light_theme else "rgba(239,68,68,0.16)"
-_expander_bg = "#ffffff" if _is_light_theme else "#1b2230"
-_expander_header_bg = "#eef4fb" if _is_light_theme else "#1b2230"
-_chat_user_bg = "#dbeafe" if _is_light_theme else "rgba(59,130,246,0.18)"
-_chat_assistant_bg = "#ffffff" if _is_light_theme else "rgba(15,23,42,0.5)"
-_plot_font = "#0f172a" if _is_light_theme else "#cbd5e1"
-_plot_grid = "rgba(148,163,184,0.28)" if _is_light_theme else "rgba(128,128,128,0.15)"
-_plot_line = "rgba(100,116,139,0.45)" if _is_light_theme else "rgba(128,128,128,0.25)"
-_plot_hover_bg = "rgba(255,255,255,0.97)" if _is_light_theme else "rgba(30,41,59,0.92)"
-_plot_hover_text = "#0f172a" if _is_light_theme else "#e2e8f0"
-_plot_legend_bg = "rgba(255,255,255,0.92)" if _is_light_theme else "rgba(128,128,128,0.08)"
-
 # Hide Streamlit's default Deploy button and menu, reduce top padding
+
+# Nullify plot color overrides so Plotly naturally adapts to Streamlit's system theme (Light/Dark automatically)
+_plot_font = None
+_plot_grid = None
+_plot_line = None
+_plot_hover_bg = None
+_plot_hover_text = None
+_plot_legend_bg = None
+
 st.markdown(
-    f"""
+    """
 <style>
-    :root {{
-        --app-page-bg: {_theme["page_bg"]};
-        --app-panel-bg: {_theme["panel_bg"]};
-        --app-panel-alt: {_theme["panel_alt"]};
-        --app-text: {_theme["text"]};
-        --app-muted: {_theme["muted"]};
-        --app-accent: {_theme["accent"]};
-        --app-accent-2: {_theme["accent_2"]};
-        --app-tab-text: {_theme["tab_text"]};
-        --app-metric-bg: {_theme["metric_bg"]};
-        --app-card-bg: {_theme["card_bg"]};
-        --app-border: {_theme["border"]};
-        --app-header-grad: {_theme["header_grad"]};
-        --app-tab-grad: {_theme["tab_grad"]};
-        --app-tab-active: {_theme["tab_active"]};
-        --app-title-grad: {_theme["title_grad"]};
-        --app-soft-bg: {_soft_bg};
-        --app-soft-bg-hover: {_soft_bg_hover};
-        --app-disabled-bg: {_disabled_bg};
-        --app-disabled-text: {_disabled_text};
-        --app-alert-info-bg: {_alert_info_bg};
-        --app-alert-warn-bg: {_alert_warn_bg};
-        --app-alert-success-bg: {_alert_success_bg};
-        --app-alert-error-bg: {_alert_error_bg};
-        --app-expander-bg: {_expander_bg};
-        --app-expander-header-bg: {_expander_header_bg};
-        --app-chat-user-bg: {_chat_user_bg};
-        --app-chat-assistant-bg: {_chat_assistant_bg};
-    }}
-
-    /* Light Theme Input Fixes */
-    .stTextInput input, 
-    .stNumberInput input,
-    .stSelectbox div[data-baseweb="select"],
-    .stSelectbox div[data-baseweb="select"] *,
-    .stTextArea textarea {{
-        color: var(--app-text) !important;
-    }}
-
     /* === HIDE STREAMLIT DEFAULTS === */
-    .stDeployButton {{display: none !important;}}
-    #MainMenu {{display: none !important;}}
-    header {{display: none !important;}}
-    footer {{display: none !important;}}
-    .stMainBlockContainer {{padding-top: 0.55rem !important;}}
-    .block-container {{padding-top: 0.55rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 98rem;}}
-    [data-testid="stAppViewContainer"] {{
-        background:
-            radial-gradient(circle at top left, rgba(59,130,246,0.14), transparent 28%),
-            radial-gradient(circle at top right, rgba(6,182,212,0.12), transparent 24%),
-            var(--app-page-bg) !important;
-        color: var(--app-text) !important;
-    }}
-    
-    html, body {{
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        font-size: 15px;
-        color: var(--app-text) !important;
-    }}
-    p, li {{
-        line-height: 1.42;
-    }}
-    [data-testid="stMarkdownContainer"],
-    [data-testid="stMarkdownContainer"] *,
-    [data-testid="stCaptionContainer"],
-    [data-testid="stCaptionContainer"] *,
-    [data-testid="stText"],
-    [data-testid="stText"] *,
-    .stAlert,
-    .stAlert * {{
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stAlert"] {{
+    .stDeployButton {display: none !important;}
+    #MainMenu {display: none !important;}
+    header {display: none !important;}
+    footer {display: none !important;}
+    .stMainBlockContainer {padding-top: 0.55rem !important;}
+    .block-container {padding-top: 0.55rem !important; padding-left: 1rem !important; padding-right: 1rem !important; max-width: 98rem;}
+
+    /* === PROFESSIONAL NAVIGATION BAR (Theme Agnostic) === */
+    .stTabs [data-baseweb="tab-list"] {
+        background: rgba(128, 128, 128, 0.08) !important;
         border-radius: 14px !important;
-        border: 1px solid var(--app-border) !important;
-    }}
-    [data-testid="stAlert"][kind="info"] {{
-        background: var(--app-alert-info-bg) !important;
-    }}
-    [data-testid="stAlert"][kind="warning"] {{
-        background: var(--app-alert-warn-bg) !important;
-    }}
-    [data-testid="stAlert"][kind="success"] {{
-        background: var(--app-alert-success-bg) !important;
-    }}
-    [data-testid="stAlert"][kind="error"] {{
-        background: var(--app-alert-error-bg) !important;
-    }}
-    h1, h2, h3 {{
-        letter-spacing: -0.02em;
-        color: var(--app-text) !important;
-    }}
-    h2 {{
-        font-size: 1.42rem !important;
-        font-weight: 800 !important;
-        margin: 0.1rem 0 0.45rem 0 !important;
-    }}
-    h3 {{
-        font-size: 1.02rem !important;
-        font-weight: 700 !important;
-        margin: 0.1rem 0 0.4rem 0 !important;
-    }}
-    [data-testid="stHeadingWithActionElements"] {{
-        margin-bottom: 0.18rem !important;
-    }}
-    .element-container {{
-        margin-bottom: 0.28rem !important;
-    }}
-    div[data-testid="stVerticalBlock"] {{
-        gap: 0.42rem !important;
-    }}
-    div[data-testid="stVerticalBlockBorderWrapper"] {{
-        padding: 0.2rem 0.15rem !important;
-        border-radius: 14px !important;
-        border-color: var(--app-border) !important;
-        background: var(--app-card-bg);
-    }}
-    
-    /* === METRICS === */
-    [data-testid="stMetric"] {{
-        padding: 0.7rem 0.85rem !important;
-        border-radius: 12px;
-        border-left: 3px solid var(--app-accent);
-        background: var(--app-metric-bg) !important;
-        box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
-    }}
-    [data-testid="stMetric"] label,
-    [data-testid="stMetric"] [data-testid="stMetricValue"],
-    [data-testid="stMetric"] [data-testid="stMetricDelta"] {{
-        color: var(--app-text) !important;
-    }}
-    .selector-metric-card {{
-        min-height: 4.55rem;
-        padding: 0.62rem 0.82rem;
-        border-radius: 14px;
-        border-left: 3px solid var(--app-accent);
-        background: var(--app-metric-bg);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 0.75rem;
-        box-shadow: none;
-    }}
-    .selector-metric-copy {{
-        min-width: 0;
-    }}
-    .selector-metric-label {{
-        font-size: 0.76rem;
-        line-height: 1.05;
-        color: var(--app-muted);
-        margin-bottom: 0.18rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }}
-    .selector-metric-value {{
-        font-size: 1.5rem;
-        line-height: 1;
-        font-weight: 800;
-        color: var(--app-text);
-    }}
-    
-    /* === PROFESSIONAL NAVIGATION BAR === */
-    .stTabs [data-baseweb="tab-list"] {{
-        background: var(--app-tab-grad) !important;
-        border-radius: 18px !important;
-        padding: 6px 3.25rem 6px 8px !important;
-        gap: 6px !important;
-        box-shadow: 0 14px 34px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255,255,255,0.06) !important;
-        border: 1px solid var(--app-border) !important;
+        padding: 4px 6px !important;
+        gap: 4px !important;
+        border: 1px solid rgba(128, 128, 128, 0.15) !important;
         margin-bottom: 0.95rem !important;
-        backdrop-filter: blur(14px);
-    }}
-    .stTabs [data-baseweb="tab"] {{
-        padding: 0.58rem 1rem !important;
+    }
+    .stTabs [data-baseweb="tab"] {
+        padding: 0.58rem 1.2rem !important;
         font-weight: 600 !important;
-        font-size: 0.86rem !important;
+        font-size: 0.88rem !important;
         letter-spacing: 0.02em !important;
-        color: var(--app-tab-text) !important;
-        border-radius: 12px !important;
+        border-radius: 10px !important;
         transition: all 0.24s ease !important;
         border: 1px solid transparent !important;
         background: transparent !important;
-    }}
-    .stTabs [data-baseweb="tab"]:hover {{
-        color: var(--app-text) !important;
-        background: rgba(255,255,255,0.06) !important;
-        border-color: var(--app-border) !important;
-        transform: translateY(-1px);
-    }}
-    .stTabs [aria-selected="true"] {{
+        opacity: 0.7;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        opacity: 1;
+        background: rgba(128, 128, 128, 0.12) !important;
+        border-color: rgba(128, 128, 128, 0.18) !important;
+    }
+    .stTabs [aria-selected="true"] {
+        opacity: 1 !important;
+        background: #2563eb !important;
         color: #ffffff !important;
-        background: var(--app-tab-active) !important;
-        border-color: rgba(255,255,255,0.18) !important;
-        box-shadow: 0 10px 20px rgba(15, 23, 42, 0.18), inset 0 1px 0 rgba(255,255,255,0.18) !important;
-        font-weight: 700 !important;
-    }}
-    .stTabs [data-baseweb="tab-highlight"] {{
+        border-color: #1d4ed8 !important;
+        box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25) !important;
+    }
+    .stTabs [data-baseweb="tab-highlight"] {
         display: none !important;
-    }}
-    .stTabs [data-baseweb="tab-border"] {{
+    }
+    .stTabs [data-baseweb="tab-border"] {
         display: none !important;
-    }}
-
-    .app-shell {{
-        padding: 0.8rem 0.95rem 0.85rem 0.95rem;
-        border-radius: 18px;
-        background: var(--app-header-grad);
-        border: 1px solid var(--app-border);
-        box-shadow: 0 18px 45px rgba(15, 23, 42, 0.14);
-        margin-bottom: 0.7rem;
-    }}
-    .app-shell-title {{
-        margin: 0;
-        font-size: 1.46rem;
-        line-height: 1.08;
-        font-weight: 800;
-        letter-spacing: -0.03em;
-        background: var(--app-title-grad);
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-    }}
-    .app-shell-subtitle {{
-        margin-top: 0.28rem;
-        color: var(--app-muted);
-        font-size: 0.82rem;
-    }}
-    .theme-chip {{
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        padding: 0.28rem 0.6rem;
-        border-radius: 999px;
-        background: rgba(255,255,255,0.08);
-        border: 1px solid var(--app-border);
-        color: var(--app-muted);
-        font-size: 0.72rem;
-        margin-bottom: 0.45rem;
-    }}
-    
-    .stButton > button,
-    .stDownloadButton > button {{
-        min-height: 2.45rem;
-        border-radius: 12px !important;
-        padding-top: 0.35rem !important;
-        padding-bottom: 0.35rem !important;
-    }}
-    .stButton > button[kind="secondary"],
-    .stDownloadButton > button[kind="secondary"] {{
-        background: var(--app-panel-bg) !important;
-        color: var(--app-text) !important;
-        border: 1px solid var(--app-border) !important;
-        box-shadow: none !important;
-    }}
-    .stButton > button,
-    .stDownloadButton > button,
-    .stButton > button *,
-    .stDownloadButton > button * {{
-        color: inherit !important;
-    }}
-    .stButton > button[kind="secondary"]:hover,
-    .stDownloadButton > button[kind="secondary"]:hover {{
-        background: var(--app-soft-bg-hover) !important;
-        border-color: var(--app-accent) !important;
-        color: var(--app-text) !important;
-    }}
-    .stButton > button[kind="primary"] {{
-        color: #ffffff !important;
-        border: 1px solid transparent !important;
-    }}
-    .stButton > button:disabled,
-    .stDownloadButton > button:disabled {{
-        background: var(--app-disabled-bg) !important;
-        color: var(--app-disabled-text) !important;
-        border: 1px solid var(--app-border) !important;
-        opacity: 1 !important;
-    }}
-    .stButton > button:disabled *,
-    .stDownloadButton > button:disabled * {{
-        color: var(--app-disabled-text) !important;
-        opacity: 1 !important;
-    }}
-
-    /* === INPUTS / SELECTS / TEXT === */
-    .stSelectbox label,
-    .stNumberInput label,
-    .stTextInput label,
-    .stRadio label,
-    .stSlider label,
-    .stTextArea label,
-    .stMarkdown,
-    .stCaption,
-    .st-emotion-cache-10trblm,
-    .st-emotion-cache-16idsys p {{
-        color: var(--app-text) !important;
-    }}
-    [data-baseweb="input"] > div,
-    [data-baseweb="select"] > div {{
-        background: var(--app-panel-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        color: var(--app-text) !important;
-        min-height: 2.45rem !important;
-        box-shadow: none !important;
-    }}
-    [data-baseweb="input"] input,
-    [data-baseweb="input"] textarea,
-    [data-baseweb="select"] input,
-    [data-baseweb="select"] span,
-    [data-baseweb="select"] div,
-    [data-baseweb="base-input"] input {{
-        color: var(--app-text) !important;
-        background: transparent !important;
-    }}
-    input::placeholder,
-    textarea::placeholder {{
-        color: var(--app-muted) !important;
-        opacity: 1 !important;
-    }}
-    [data-baseweb="select"] svg,
-    [data-baseweb="input"] svg {{
-        fill: var(--app-text) !important;
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stNumberInput"] button {{
-        background: var(--app-soft-bg) !important;
-        color: var(--app-text) !important;
-        border-left: 1px solid var(--app-border) !important;
-        box-shadow: none !important;
-    }}
-    [data-testid="stNumberInput"] button:hover {{
-        background: var(--app-soft-bg-hover) !important;
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stNumberInput"] button:disabled,
-    [data-testid="stSelectbox"] [aria-disabled="true"],
-    [data-testid="stTextInput"] [aria-disabled="true"] {{
-        background: var(--app-disabled-bg) !important;
-        color: var(--app-disabled-text) !important;
-    }}
-    [data-baseweb="select"] input:disabled,
-    [data-baseweb="select"] input[disabled],
-    [data-baseweb="base-input"] input:disabled,
-    [data-baseweb="base-input"] input[disabled],
-    [data-baseweb="input"] input:disabled,
-    [data-baseweb="input"] input[disabled] {{
-        color: var(--app-disabled-text) !important;
-        -webkit-text-fill-color: var(--app-disabled-text) !important;
-        opacity: 1 !important;
-        background: transparent !important;
-    }}
-    [data-baseweb="select"] > div:has(input:disabled),
-    [data-baseweb="base-input"] > div:has(input:disabled),
-    [data-baseweb="input"] > div:has(input:disabled) {{
-        background: var(--app-disabled-bg) !important;
-        border-color: var(--app-border) !important;
-    }}
-    [data-testid="stSelectbox"] [aria-disabled="true"] *,
-    [data-testid="stTextInput"] [aria-disabled="true"] *,
-    [data-testid="stNumberInput"] [aria-disabled="true"] * {{
-        color: var(--app-disabled-text) !important;
-        opacity: 1 !important;
-    }}
-    [data-baseweb="popover"],
-    [data-baseweb="popover"] *,
-    [role="listbox"],
-    [role="listbox"] *,
-    [role="option"],
-    [role="option"] * {{
-        background: var(--app-panel-bg) !important;
-        color: var(--app-text) !important;
-    }}
-    [role="option"][aria-selected="true"] {{
-        background: color-mix(in srgb, var(--app-accent) 18%, var(--app-panel-bg)) !important;
-    }}
-    [data-testid="stSelectbox"] > div,
-    [data-testid="stNumberInput"] > div,
-    [data-testid="stTextInput"] > div,
-    [data-testid="stTextArea"] > div {{
-        max-width: 100% !important;
-    }}
-    [data-baseweb="radio"] > div {{
-        gap: 0.35rem !important;
-    }}
-    [data-testid="stSlider"] > div[data-baseweb="slider"] {{
-        padding-left: 0.15rem !important;
-        padding-right: 0.15rem !important;
-    }}
-    [data-testid="stSelectbox"],
-    [data-testid="stNumberInput"],
-    [data-testid="stTextInput"],
-    [data-testid="stTextArea"] {{
-        width: 100% !important;
-    }}
-    [data-testid="stRadio"] [role="radiogroup"] label,
-    [data-testid="stRadio"] [role="radiogroup"] div {{
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stFileUploader"] section,
-    [data-testid="stFileUploaderDropzone"],
-    [data-testid="stFileUploaderDropzone"] * {{
-        background: var(--app-panel-bg) !important;
-        color: var(--app-text) !important;
-        border-color: var(--app-border) !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] button {{
-        background: var(--app-soft-bg) !important;
-        color: var(--app-text) !important;
-        border: 1px solid var(--app-border) !important;
-    }}
-    [data-testid="stFileUploaderDropzone"] button:hover {{
-        background: var(--app-soft-bg-hover) !important;
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stDataFrame"] {{
-        background: var(--app-panel-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        border-radius: 12px !important;
-        --gdg-bg-cell: var(--app-panel-bg);
-        --gdg-bg-cell-medium: var(--app-panel-bg);
-        --gdg-bg-header: var(--app-soft-bg);
-        --gdg-bg-header-has-focus: var(--app-soft-bg-hover);
-        --gdg-header-font-style: 600 13px sans-serif;
-        --gdg-base-font-style: 500 13px sans-serif;
-        --gdg-text-dark: var(--app-text);
-        --gdg-text-medium: var(--app-text);
-        --gdg-text-light: var(--app-muted);
-        --gdg-border-color: var(--app-border);
-        --gdg-horizontal-border-color: var(--app-border);
-        --gdg-vertical-border-color: var(--app-border);
-        --gdg-selection-color: color-mix(in srgb, var(--app-accent) 16%, transparent);
-        --gdg-accent-color: var(--app-accent);
-    }}
-    [data-testid="stDataFrame"] [role="grid"],
-    [data-testid="stDataFrame"] [role="grid"] * {{
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stDataFrame"] [role="columnheader"] {{
-        background: var(--app-soft-bg) !important;
-        color: var(--app-text) !important;
-        border-color: var(--app-border) !important;
-    }}
-    [data-testid="stDataFrame"] [role="gridcell"] {{
-        background: var(--app-panel-bg) !important;
-        border-color: var(--app-border) !important;
-    }}
-    [data-testid="stDataFrame"] input,
-    [data-testid="stDataFrame"] textarea {{
-        color: var(--app-text) !important;
-        background: transparent !important;
-    }}
-    [data-testid="stDataFrame"] svg {{
-        color: var(--app-text) !important;
-        fill: var(--app-text) !important;
-    }}
-    [data-testid="stDataFrame"] canvas {{
-        border-radius: 12px !important;
-    }}
-    [data-testid="stChatInput"] {{
-        background: var(--app-panel-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        border-radius: 14px !important;
-    }}
-    [data-testid="stChatInput"] textarea,
-    [data-testid="stChatInput"] input {{
-        color: var(--app-text) !important;
-        background: transparent !important;
-    }}
-    [data-testid="stChatMessageContent"] {{
-        color: var(--app-text) !important;
-    }}
-    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-user"]) {{
-        background: var(--app-chat-user-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        border-radius: 14px !important;
-        padding: 0.15rem 0.45rem !important;
-    }}
-    [data-testid="stChatMessage"]:has([data-testid="chatAvatarIcon-assistant"]) {{
-        background: var(--app-chat-assistant-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        border-radius: 14px !important;
-        padding: 0.15rem 0.45rem !important;
-    }}
-    [data-testid="stExpander"] {{
-        background: var(--app-expander-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        border-radius: 14px !important;
-        overflow: hidden !important;
-    }}
-    [data-testid="stExpander"] summary {{
-        background: var(--app-expander-header-bg) !important;
-        color: var(--app-text) !important;
-        border-radius: 14px !important;
-    }}
-    [data-testid="stExpander"] summary:hover {{
-        background: var(--app-soft-bg-hover) !important;
-    }}
-    [data-testid="stExpanderDetails"] {{
-        background: var(--app-expander-bg) !important;
-        color: var(--app-text) !important;
-    }}
-    .header-theme-wrap [data-testid="stSelectbox"] {{
-        max-width: 13rem !important;
-        margin-left: auto !important;
-    }}
-    .header-theme-wrap,
-    .nav-theme-wrap {{
-        width: fit-content;
-        margin-left: auto;
-    }}
-    .nav-theme-wrap {{
-        display: flex;
-        align-items: center;
-        padding-top: 0.18rem;
-        margin-left: -3.05rem;
-        position: relative;
-        z-index: 8;
-    }}
-    .header-theme-wrap [data-testid="stPopover"],
-    .nav-theme-wrap [data-testid="stPopover"] {{
-        width: auto !important;
-        display: flex;
-        justify-content: flex-end;
-    }}
-    .header-theme-wrap > div,
-    .nav-theme-wrap > div {{
-        width: auto !important;
-    }}
-    .header-theme-wrap button[kind="secondary"],
-    .nav-theme-wrap button[kind="secondary"] {{
-        min-width: 1.95rem !important;
-        width: 1.95rem !important;
-        height: 1.95rem !important;
-        padding: 0 !important;
-        border-radius: 999px !important;
-        font-size: 0.8rem !important;
-        font-weight: 700 !important;
-        background: var(--app-panel-bg) !important;
-        color: var(--app-text) !important;
-        border: 1px solid var(--app-border) !important;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.16) !important;
-    }}
-    .header-theme-wrap button[kind="secondary"]:hover,
-    .nav-theme-wrap button[kind="secondary"]:hover {{
-        border-color: var(--app-accent) !important;
-        color: var(--app-accent-2) !important;
-        transform: translateY(-1px);
-    }}
-    .header-theme-wrap [data-testid="stPopoverContent"],
-    .nav-theme-wrap [data-testid="stPopoverContent"] {{
-        min-width: 8.2rem !important;
-        max-width: 8.8rem !important;
-        padding: 0.15rem !important;
-    }}
-    .theme-popover-title {{
-        color: var(--app-muted);
-        font-size: 0.72rem;
-        font-weight: 700;
-        letter-spacing: 0.04em;
-        text-transform: uppercase;
-        margin-bottom: 0.35rem;
-    }}
-    .theme-popover-grid {{
-        display: grid;
-        gap: 0.32rem;
-    }}
-    .theme-popover-grid .stButton > button {{
-        min-height: 2rem !important;
-        height: 2rem !important;
-        width: 100% !important;
-        border-radius: 10px !important;
-        padding: 0.2rem 0.55rem !important;
-        justify-content: flex-start !important;
-        font-size: 0.8rem !important;
-        font-weight: 700 !important;
-        background: var(--app-panel-bg) !important;
-        border: 1px solid var(--app-border) !important;
-        color: var(--app-text) !important;
-        box-shadow: none !important;
-    }}
-    .theme-popover-grid .stButton > button:hover {{
-        border-color: var(--app-accent) !important;
-        color: var(--app-accent) !important;
-    }}
-    .theme-popover-grid .stButton > button[kind="primary"] {{
-        background: var(--app-tab-active) !important;
-        border-color: rgba(255,255,255,0.18) !important;
-        color: #ffffff !important;
-    }}
-    
-    [data-testid="stDataFrame"] {{
-        border-radius: 8px !important;
-    }}
-    
-    div[data-testid="stHorizontalBlock"] {{
-        align-items: stretch;
-    }}
-    
-    .stSelectbox, .stNumberInput, .stTextInput, .stRadio {{
-        margin-bottom: 0.12rem;
-    }}
-
-    .ai-settings-note {{
-        padding: 0.85rem 1rem;
-        border-radius: 12px;
-        border: 1px solid var(--app-border);
-        background: var(--app-card-bg);
-        margin-bottom: 0.75rem;
-        line-height: 1.5;
-    }}
-    .ai-summary-card {{
-        padding: 1rem 1.1rem;
-        border-radius: 14px;
-        border: 1px solid var(--app-border);
-        background: var(--app-card-bg);
-    }}
-    .ai-summary-card ul {{
-        margin-top: 0.45rem;
-        padding-left: 1.1rem;
-    }}
-    .ai-summary-card li {{
-        margin-bottom: 0.35rem;
-    }}
-    {"html body [data-testid='stAppViewContainer'] .stButton > button, html body [data-testid='stAppViewContainer'] .stDownloadButton > button, html body [data-testid='stAppViewContainer'] [data-testid='stFileUploaderDropzone'] button { background: #ffffff !important; color: #0f172a !important; border: 1px solid rgba(15,23,42,0.18) !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] .stButton > button[kind='secondary'], html body [data-testid='stAppViewContainer'] .stButton > button[kind='secondaryFormSubmit'], html body [data-testid='stAppViewContainer'] .stDownloadButton > button[kind='secondary'], html body [data-testid='stAppViewContainer'] .stDownloadButton > button[kind='secondaryFormSubmit'] { background: #ffffff !important; color: #0f172a !important; border: 1px solid rgba(15,23,42,0.18) !important; box-shadow: none !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] .stButton > button:disabled, html body [data-testid='stAppViewContainer'] .stButton > button[disabled], html body [data-testid='stAppViewContainer'] .stButton > button[aria-disabled='true'] { background: #e2e8f0 !important; color: #475569 !important; border: 1px solid rgba(15,23,42,0.16) !important; opacity: 1 !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] .stButton > button:disabled *, html body [data-testid='stAppViewContainer'] .stButton > button[disabled] *, html body [data-testid='stAppViewContainer'] .stButton > button[aria-disabled='true'] * { color: #475569 !important; -webkit-text-fill-color: #475569 !important; opacity: 1 !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] [data-testid='stNumberInput'] button, html body [data-testid='stAppViewContainer'] [data-testid='stNumberInput'] button * { background: #e8f0fa !important; color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] [data-baseweb='select'] input, html body [data-testid='stAppViewContainer'] [data-baseweb='select'] span, html body [data-testid='stAppViewContainer'] [data-baseweb='base-input'] input, html body [data-testid='stAppViewContainer'] [data-baseweb='input'] input { color: #0f172a !important; -webkit-text-fill-color: #0f172a !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] [data-baseweb='select'] input:disabled, html body [data-testid='stAppViewContainer'] [data-baseweb='select'] span[aria-disabled='true'], html body [data-testid='stAppViewContainer'] [data-baseweb='base-input'] input:disabled, html body [data-testid='stAppViewContainer'] [data-baseweb='input'] input:disabled { color: #475569 !important; -webkit-text-fill-color: #475569 !important; opacity: 1 !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] [data-testid='stDataFrame'], html body [data-testid='stAppViewContainer'] [data-testid='stDataEditor'] { --gdg-bg-cell: #ffffff !important; --gdg-bg-cell-medium: #ffffff !important; --gdg-bg-header: #e8f0fa !important; --gdg-bg-header-has-focus: #dbe8f8 !important; --gdg-text-dark: #0f172a !important; --gdg-text-medium: #0f172a !important; --gdg-text-light: #475569 !important; --gdg-border-color: rgba(15,23,42,0.14) !important; --gdg-horizontal-border-color: rgba(15,23,42,0.14) !important; --gdg-vertical-border-color: rgba(15,23,42,0.14) !important; --gdg-accent-color: #2563eb !important; }" if _is_light_theme else ""}
-    {"html body [data-testid='stAppViewContainer'] [data-testid='stDataFrame'] [role='columnheader'], html body [data-testid='stAppViewContainer'] [data-testid='stDataEditor'] [role='columnheader'] { background: #e8f0fa !important; color: #0f172a !important; }" if _is_light_theme else ""}
+    }
 </style>
 """,
     unsafe_allow_html=True,
@@ -3754,29 +3141,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Define Tabs + Theme Control Row
-nav_cols = st.columns([6.0, 0.28], gap="small")
-with nav_cols[0]:
-    tab_analysis, tab_data, tab_viz, tab_ai, tab_history, tab_ref = st.tabs(
-        ["Analysis & Report", "Data Worksheet", "Visualization", "AI Predictive Health", "History", "Reference"]
-    )
-with nav_cols[1]:
-    st.markdown('<div class="nav-theme-wrap">', unsafe_allow_html=True)
-    with st.popover("🎨", help="Change theme", use_container_width=False):
-        st.markdown('<div class="theme-popover-title">Theme</div>', unsafe_allow_html=True)
-        st.markdown('<div class="theme-popover-grid">', unsafe_allow_html=True)
-        for theme_name, theme_icon in [("Midnight", "🌙"), ("Graphite", "◼"), ("Light", "☀")]:
-            button_type = "primary" if st.session_state.get("ui_theme") == theme_name else "secondary"
-            st.button(
-                f"{theme_icon} {theme_name}",
-                key=f"theme_btn_{theme_name.lower()}",
-                type=button_type,
-                use_container_width=True,
-                on_click=set_ui_theme,
-                args=(theme_name,),
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+# Define Tabs
+tab_analysis, tab_data, tab_viz, tab_ai, tab_history, tab_ref = st.tabs(
+    ["Analysis & Report", "Data Worksheet", "Visualization", "AI Predictive Health", "History", "Reference"]
+)
 
 # --- Tab 1: Analysis & Report ---
 with tab_analysis:
