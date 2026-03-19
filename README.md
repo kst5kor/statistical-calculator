@@ -2,6 +2,10 @@
 
 Streamlit app for automotive dimensional capability analysis, worksheet-driven visualization, and predictive health review.
 
+## Live Application
+
+- **Cloud Deployment:** [https://statistical-calculator-xeo9jqdqkculy7wgfaofee.streamlit.app/](https://statistical-calculator-xeo9jqdqkculy7wgfaofee.streamlit.app/)
+
 ## What This App Does
 
 - Enter part-by-part measurement data with `DMC / Serial Number` and `Value`
