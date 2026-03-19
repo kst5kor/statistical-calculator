@@ -2251,7 +2251,7 @@ CHARACTERISTIC_FIELDS = [
 
 
 def default_characteristic_state(name="Characteristic 1"):
-    worksheet_df = pd.DataFrame({"Value": [None] * 20})
+    worksheet_df = pd.DataFrame({"Value": [None] * 100})
     return {
         "tm": 10.00,
         "lsl": 9.90,
@@ -2352,15 +2352,30 @@ def sync_global_from_characteristic(name):
         st.session_state.characteristics[name] = default_characteristic_state(name)
     state = st.session_state.characteristics[name]
     for key in CHARACTERISTIC_FIELDS:
-        st.session_state[key] = state.get(key)
-    st.session_state.measurement_name = state.get("measurement_name", name)
+        try:
+            st.session_state[key] = state.get(key)
+        except Exception:
+            # Widget-bound keys (e.g. tm, lsl, usl, mode) cannot be modified
+            # after the widget has been instantiated in the current run; skip.
+            pass
+    try:
+        st.session_state.measurement_name = state.get("measurement_name", name)
+    except Exception:
+        pass
     st.session_state.results = dict(state.get("results", {}))
     st.session_state.summary = dict(state.get("summary", {}))
     st.session_state.figs = dict(state.get("figs", {}))
-    st.session_state.worksheet_data = state.get("worksheet_data").copy()
-    st.session_state.original_worksheet_data = state.get(
-        "original_worksheet_data", st.session_state.worksheet_data
-    ).copy()
+    ws = state.get("worksheet_data")
+    if isinstance(ws, pd.DataFrame):
+        st.session_state.worksheet_data = ws.copy()
+    else:
+        st.session_state.worksheet_data = pd.DataFrame({"Value": [None] * 20})
+    ows = state.get("original_worksheet_data", st.session_state.worksheet_data)
+    if isinstance(ows, pd.DataFrame):
+        st.session_state.original_worksheet_data = ows.copy()
+    else:
+        st.session_state.original_worksheet_data = st.session_state.worksheet_data.copy()
+
 
 
 def sync_characteristic_state_machine():
@@ -2563,17 +2578,25 @@ def save_characteristic_metadata(metadata_df):
 def run_characteristic_analysis(characteristic_name):
     state = st.session_state.characteristics[characteristic_name]
     analysis_inputs = dict(state)
+    worksheet_values = []
     if state.get("mode") == "Use Data Worksheet":
         worksheet = state.get("worksheet_data")
-        values = []
         if isinstance(worksheet, pd.DataFrame) and "Value" in worksheet.columns:
-            values = worksheet["Value"].dropna().tolist()
-        analysis_inputs["raw_data"] = ", ".join(map(str, values))
+            worksheet_values = [
+                float(v) for v in worksheet["Value"].dropna().tolist()
+                if calc.is_numeric(v)
+            ]
+        analysis_inputs["raw_data"] = ", ".join(map(str, worksheet_values))
         analysis_inputs["mode"] = "import"
     else:
         analysis_inputs["mode"] = "manual"
 
     results = calc.calculate(analysis_inputs)
+
+    # Ensure importedData is always present when using worksheet mode
+    if worksheet_values and not results.get("importedData"):
+        results["importedData"] = worksheet_values
+
     summary = {}
     figs = {}
     if not results.get("error"):
@@ -2588,13 +2611,17 @@ def run_characteristic_analysis(characteristic_name):
 
 
 def analyze_all_characteristics():
+    # Propagate the global data input mode to all characteristics
+    global_mode = st.session_state.get("mode", "Enter Manually")
     summaries = []
     for name in st.session_state.characteristics:
+        # Set each characteristic's mode to match the global setting
+        st.session_state.characteristics[name]["mode"] = global_mode
         results, summary, _ = run_characteristic_analysis(name)
         summaries.append(
             {
                 "Characteristic": name,
-                "Mode": st.session_state.characteristics[name].get("mode"),
+                "Mode": global_mode,
                 "Samples": results.get("n_samples"),
                 "Cpk/Ppk": results.get("CpkCurrent", np.nan),
                 "Verdict": summary.get("verdict", results.get("error", "Error")),
@@ -2833,10 +2860,8 @@ def init_session_state(clear_form=False):
 
 
 init_session_state()
-simplify_to_single_characteristic()
-# NOTE: Do NOT call sync_global_from_characteristic here.
-# simplify_to_single_characteristic already calls it internally,
-# and calling it again would overwrite widget-driven state (e.g. 'mode' radio).
+ensure_characteristics_state()
+sync_characteristic_state_machine()
 
 # --- Main App UI ---
 st.title("Statistical Process Capability & Optimization Tool")
@@ -2851,6 +2876,23 @@ with tab_analysis:
     # Display Error Messages
     if st.session_state.results and st.session_state.results.get("error"):
         st.error(f"**Analysis Error:** {st.session_state.results['error']}")
+
+    # --- Characteristic Selector ---
+    char_names = list(st.session_state.characteristics.keys())
+    selector_cols = st.columns([2, 1])
+    with selector_cols[0]:
+        selected_char = st.selectbox(
+            "Active Characteristic",
+            char_names,
+            index=char_names.index(st.session_state.active_characteristic_name) if st.session_state.active_characteristic_name in char_names else 0,
+            key="analysis_char_selector",
+            help="Select the characteristic to view results for. Add new characteristics in the Data Worksheet tab.",
+        )
+        if selected_char != st.session_state.active_characteristic_name:
+            set_active_characteristic(selected_char)
+            st.rerun()
+    with selector_cols[1]:
+        st.metric("Total Characteristics", len(char_names))
 
     active_characteristic = st.session_state.active_characteristic_name
 
@@ -2999,12 +3041,17 @@ with tab_analysis:
             )
 
         # Other buttons outside the form
-        btn_cols = st.columns(2)
+        btn_cols = st.columns(3)
         with btn_cols[0]:
             submitted = st.button(
                 "ANALYZE & PLOT", use_container_width=True, type="primary"
             )
         with btn_cols[1]:
+            submitted_all = st.button(
+                "⚡ ANALYZE ALL", use_container_width=True, type="secondary",
+                help="Run analysis on ALL characteristics simultaneously.",
+            )
+        with btn_cols[2]:
             st.button(
                 "RESET ACTIVE",
                 use_container_width=True,
@@ -3062,6 +3109,49 @@ with tab_analysis:
             sync_characteristic_from_global(active_characteristic)
 
         st.rerun()  # Rerun to display the new results
+
+    # --- ANALYZE ALL Logic ---
+    if submitted_all:
+        analyze_all_characteristics()
+        # Save all to history
+        for char_name in st.session_state.characteristics:
+            char_state = st.session_state.characteristics[char_name]
+            char_results = char_state.get("results", {})
+            if char_results and not char_results.get("error"):
+                history_entry = char_results.copy()
+                history_entry["id"] = datetime.datetime.now().isoformat()
+                history_entry["characteristic_name"] = char_name
+                if "importedData" in history_entry:
+                    del history_entry["importedData"]
+                st.session_state.history.insert(0, history_entry)
+        st.session_state.history = st.session_state.history[:250]
+        # Update global from active
+        sync_global_from_characteristic(st.session_state.active_characteristic_name)
+        st.rerun()
+
+    # --- Batch Results Summary ---
+    if "batch_results_df" in st.session_state and isinstance(st.session_state.batch_results_df, pd.DataFrame) and not st.session_state.batch_results_df.empty:
+        st.divider()
+        st.subheader("📊 Bulk Analysis Summary")
+        batch_df = st.session_state.batch_results_df.copy()
+        # Color-code the verdict column
+        def _verdict_color(v):
+            if "GOOD" in str(v).upper():
+                return "background-color: #22c55e20; color: #22c55e;"
+            elif "MARGINAL" in str(v).upper():
+                return "background-color: #f59e0b20; color: #f59e0b;"
+            elif "ACTION" in str(v).upper() or "INVALID" in str(v).upper():
+                return "background-color: #ef444420; color: #ef4444;"
+            return ""
+
+        st.dataframe(
+            batch_df.style.map(_verdict_color, subset=["Verdict"]),
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Cpk/Ppk": st.column_config.NumberColumn(format="%.3f"),
+            },
+        )
 
     # --- Column 2: Calculated Results ---
     with main_cols[1]:
@@ -3256,81 +3346,104 @@ with tab_data:
     st.markdown(
         """
     <p style="font-size: 0.9rem; font-style: italic; color: inherit; opacity: 0.7;">
-    Import, edit, and analyze one characteristic with a clean part-by-part worksheet.
+    Define multiple characteristics with tolerances and enter measurement values in the grid below.
+    Each column represents one measurement characteristic.
     </p>
     """,
         unsafe_allow_html=True,
     )
 
-    active_characteristic = st.session_state.active_characteristic_name
-    active_state = st.session_state.characteristics[active_characteristic]
-
-    if "worksheet_measurement_name" not in st.session_state:
-        st.session_state.worksheet_measurement_name = active_state.get(
-            "measurement_name", st.session_state.get("measurement_name", "")
-        )
-    if "worksheet_description" not in st.session_state:
-        st.session_state.worksheet_description = active_state.get(
-            "description", st.session_state.get("description", "")
-        )
-    if "worksheet_tm" not in st.session_state:
-        st.session_state.worksheet_tm = active_state.get(
-            "tm", st.session_state.get("tm", 10.0)
-        )
-    if "worksheet_lsl" not in st.session_state:
-        st.session_state.worksheet_lsl = active_state.get(
-            "lsl", st.session_state.get("lsl", 9.9)
-        )
-    if "worksheet_usl" not in st.session_state:
-        st.session_state.worksheet_usl = active_state.get(
-            "usl", st.session_state.get("usl", 10.1)
-        )
-
-    # --- Measurement Name ---
-    data_header_cols = st.columns([2, 1, 1, 1])
-    with data_header_cols[0]:
-        st.text_input(
-            "Measurement Label",
-            key="worksheet_measurement_name",
-            placeholder="e.g., Diameter_Part_A",
-            help="A descriptive label used in exports and history for the active characteristic.",
-        )
-    with data_header_cols[1]:
-        st.text_input(
-            "Description",
-            key="worksheet_description",
-            placeholder="e.g., Outer diameter before plating",
-            help="Short engineering note for this characteristic.",
-        )
-    with data_header_cols[2]:
-        st.number_input("Target Mean", key="worksheet_tm", step=0.01)
-    with data_header_cols[3]:
-        tol_cols = st.columns(2)
-        with tol_cols[0]:
-            st.number_input("LSL", key="worksheet_lsl", step=0.01)
-        with tol_cols[1]:
-            st.number_input("USL", key="worksheet_usl", step=0.01)
-
-    active_state["measurement_name"] = st.session_state.worksheet_measurement_name
-    active_state["description"] = st.session_state.worksheet_description
-    active_state["tm"] = st.session_state.worksheet_tm
-    active_state["lsl"] = st.session_state.worksheet_lsl
-    active_state["usl"] = st.session_state.worksheet_usl
-
-    # --- File Upload Section ---
+    # --- 1. Characteristic Management ---
     with st.container(border=True):
-        st.subheader("1. Data Import")
+        st.subheader("1. Characteristics & Tolerances")
+        st.caption(
+            "Add/remove characteristics and set their tolerances. Each characteristic gets its own column in the data grid."
+        )
+
+        # Add / Delete controls
+        mgmt_cols = st.columns([3, 1, 1])
+        with mgmt_cols[0]:
+            new_char_name = st.text_input(
+                "New Characteristic Name",
+                key="new_characteristic_name_input",
+                placeholder="e.g., Length, Width, Bore Diameter...",
+                label_visibility="collapsed",
+            )
+        with mgmt_cols[1]:
+            if st.button("➕ Add Characteristic", use_container_width=True):
+                if new_char_name and new_char_name.strip():
+                    ok, msg = create_characteristic(new_char_name.strip())
+                    if ok:
+                        st.rerun()
+                    else:
+                        st.warning(msg)
+                else:
+                    st.warning("Enter a name for the new characteristic.")
+        with mgmt_cols[2]:
+            if st.button("🗑️ Delete Active", use_container_width=True):
+                if len(st.session_state.characteristics) > 1:
+                    ok, msg = delete_active_characteristic()
+                    if ok:
+                        st.rerun()
+                    else:
+                        st.warning(msg)
+                else:
+                    st.warning("At least one characteristic must remain.")
+
+        # Metadata table
+        metadata_df = build_characteristic_metadata()
+        edited_metadata = st.data_editor(
+            metadata_df,
+            num_rows="fixed",
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Characteristic": st.column_config.TextColumn(
+                    "Characteristic Name",
+                    help="Name of the measurement characteristic.",
+                    disabled=True,
+                ),
+                "Description": st.column_config.TextColumn(
+                    "Description",
+                    help="Short engineering note (e.g., 'Outer diameter before plating').",
+                ),
+                "Target Mean": st.column_config.NumberColumn(
+                    "Target Mean (Tₘ)",
+                    help="The desired center value for this dimension.",
+                    format="%.4f",
+                    step=0.001,
+                ),
+                "LSL": st.column_config.NumberColumn(
+                    "LSL",
+                    help="Lower Specification Limit.",
+                    format="%.4f",
+                    step=0.001,
+                ),
+                "USL": st.column_config.NumberColumn(
+                    "USL",
+                    help="Upper Specification Limit.",
+                    format="%.4f",
+                    step=0.001,
+                ),
+            },
+            key="metadata_editor",
+        )
+        save_characteristic_metadata(edited_metadata)
+
+    # --- 2. Data Import ---
+    with st.container(border=True):
+        st.subheader("2. Data Import")
         upload_cols = st.columns([2, 1, 1])
 
         with upload_cols[0]:
             uploaded_file = st.file_uploader(
                 "Upload CSV or Excel file",
                 type=["csv", "xlsx", "xls"],
-                help="Drag and drop or click to upload. The first numeric column is used as the measurement values.",
+                help="Each numeric column becomes a characteristic. A DMC/Serial/Part column is auto-detected.",
             )
 
         with upload_cols[1]:
-            st.markdown("**Or paste data:**")
+            st.markdown("**Paste options:**")
             paste_mode = st.radio(
                 "Paste format",
                 ["Comma separated", "Newline separated", "Tab separated"],
@@ -3343,13 +3456,14 @@ with tab_data:
 
             @st.cache_data
             def _make_template():
-                """Generate a pre-formatted .xlsx template for data entry (cached)."""
+                """Generate a pre-formatted .xlsx template with multiple characteristic columns."""
                 wb = Workbook()
                 ws = wb.active
                 ws.title = "Data"
                 ws.column_dimensions["A"].width = 8
                 ws.column_dimensions["B"].width = 28
                 ws.column_dimensions["C"].width = 18
+                ws.column_dimensions["D"].width = 18
 
                 hdr_font = Font(name="Calibri", bold=True, size=11, color="FFFFFF")
                 hdr_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid")
@@ -3361,7 +3475,7 @@ with tab_data:
                     bottom=Side(style="thin", color="D1D5DB"),
                 )
 
-                for col, header in [(1, "#"), (2, "DMC / Serial Number"), (3, "Value")]:
+                for col, header in [(1, "#"), (2, "DMC / Serial Number"), (3, "Measurement 1"), (4, "Measurement 2")]:
                     c = ws.cell(row=1, column=col, value=header)
                     c.font = hdr_font
                     c.fill = hdr_fill
@@ -3369,24 +3483,27 @@ with tab_data:
                     c.border = thin_border
 
                 sample = [
-                    ("DMC-2024-001", 10.005), ("DMC-2024-002", 9.998),
-                    ("DMC-2024-003", 10.012), ("DMC-2024-004", 9.985),
-                    ("DMC-2024-005", 10.008), ("DMC-2024-006", 9.992),
-                    ("DMC-2024-007", 10.015), ("DMC-2024-008", 10.001),
-                    ("DMC-2024-009", 9.990), ("DMC-2024-010", 10.010),
+                    ("DMC-2024-001", 10.005, 25.012), ("DMC-2024-002", 9.998, 24.995),
+                    ("DMC-2024-003", 10.012, 25.008), ("DMC-2024-004", 9.985, 25.022),
+                    ("DMC-2024-005", 10.008, 24.988), ("DMC-2024-006", 9.992, 25.015),
+                    ("DMC-2024-007", 10.015, 25.003), ("DMC-2024-008", 10.001, 24.997),
+                    ("DMC-2024-009", 9.990, 25.018), ("DMC-2024-010", 10.010, 25.001),
                 ]
                 input_fill = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
                 alt_fill = PatternFill(start_color="EFF6FF", end_color="EFF6FF", fill_type="solid")
-                for i, (dmc, val) in enumerate(sample, start=1):
+                for i, (dmc, val1, val2) in enumerate(sample, start=1):
                     r = i + 1
                     ws.cell(row=r, column=1, value=i).border = thin_border
                     ws.cell(row=r, column=1).alignment = hdr_align
                     ws.cell(row=r, column=2, value=dmc).border = thin_border
-                    ws.cell(row=r, column=3, value=val).border = thin_border
+                    ws.cell(row=r, column=3, value=val1).border = thin_border
                     ws.cell(row=r, column=3).number_format = "0.0000"
+                    ws.cell(row=r, column=4, value=val2).border = thin_border
+                    ws.cell(row=r, column=4).number_format = "0.0000"
                     fill = alt_fill if i % 2 == 0 else input_fill
                     ws.cell(row=r, column=2).fill = fill
                     ws.cell(row=r, column=3).fill = fill
+                    ws.cell(row=r, column=4).fill = fill
 
                 for i in range(len(sample) + 1, 101):
                     r = i + 1
@@ -3395,13 +3512,16 @@ with tab_data:
                     ws.cell(row=r, column=2).border = thin_border
                     ws.cell(row=r, column=3).border = thin_border
                     ws.cell(row=r, column=3).number_format = "0.0000"
+                    ws.cell(row=r, column=4).border = thin_border
+                    ws.cell(row=r, column=4).number_format = "0.0000"
                     fill = alt_fill if i % 2 == 0 else input_fill
                     ws.cell(row=r, column=2).fill = fill
                     ws.cell(row=r, column=3).fill = fill
+                    ws.cell(row=r, column=4).fill = fill
 
                 ws.cell(row=103, column=2, value="💡 Replace sample data with your actual measurements.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
-                ws.cell(row=104, column=2, value="📤 Upload this file back using the file uploader in the Streamlit app.").font = Font(
+                ws.cell(row=104, column=2, value="📤 Each numeric column becomes a separate characteristic.").font = Font(
                     name="Calibri", size=9, italic=True, color="6B7280")
 
                 buf = io.BytesIO()
@@ -3415,21 +3535,36 @@ with tab_data:
                 file_name="SPC_Data_Template.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True,
-                help="Download a pre-formatted Excel template with correct columns. Fill it in Excel, then upload it back above.",
+                help="Download a pre-formatted Excel template with multiple measurement columns.",
             )
-            if st.button("Clear Data", use_container_width=True):
+            if st.button("Clear All Data", use_container_width=True):
                 st.session_state.last_uploaded_signature = None
-                set_worksheet_data([None] * 20)
+                for char_name in st.session_state.characteristics:
+                    st.session_state.characteristics[char_name]["worksheet_data"] = pd.DataFrame({"Value": [None] * 100})
+                    st.session_state.characteristics[char_name]["original_worksheet_data"] = pd.DataFrame({"Value": [None] * 100})
+                    st.session_state.characteristics[char_name]["raw_data"] = ""
+                    st.session_state.characteristics[char_name]["transform_dirty"] = False
+                st.session_state.part_ids = []
+                sync_global_from_characteristic(st.session_state.active_characteristic_name)
                 st.rerun()
-            if st.button("Sample Data", use_container_width=True):
-                # Generate sample normal data
-                sample_rng = np.random.default_rng(42)
-                sample_data = sample_rng.normal(10.0, 0.02, 1000).round(4)
+            if st.button("Sample Data (All)", use_container_width=True):
                 st.session_state.last_uploaded_signature = None
-                set_worksheet_data(sample_data)
+                sample_rng = np.random.default_rng(42)
+                for idx, char_name in enumerate(st.session_state.characteristics):
+                    char_state = st.session_state.characteristics[char_name]
+                    center = char_state.get("tm", 10.0)
+                    spread = (char_state.get("usl", center + 0.1) - char_state.get("lsl", center - 0.1)) / 6
+                    if spread <= 0:
+                        spread = 0.02
+                    sample_data = sample_rng.normal(center, spread, 10000).round(4)
+                    char_state["worksheet_data"] = pd.DataFrame({"Value": list(sample_data)})
+                    char_state["original_worksheet_data"] = pd.DataFrame({"Value": list(sample_data)})
+                    char_state["raw_data"] = ""  # Skip string storage for large datasets
+                    char_state["transform_dirty"] = False
+                sync_global_from_characteristic(st.session_state.active_characteristic_name)
                 st.rerun()
 
-    # Process uploaded file
+    # Process uploaded file (multi-column support)
     if uploaded_file is not None:
         upload_signature = (
             uploaded_file.name,
@@ -3442,6 +3577,7 @@ with tab_data:
                 else:
                     df_uploaded = pd.read_excel(uploaded_file)
 
+                # Detect DMC column
                 potential_dmc_cols = [
                     column
                     for column in df_uploaded.columns
@@ -3455,83 +3591,101 @@ with tab_data:
                     )
                     st.session_state.part_ids = dmc_values
 
-                # Use first numeric column for the single worksheet characteristic
+                # Each numeric column becomes a characteristic
                 numeric_cols = df_uploaded.select_dtypes(include=[np.number]).columns
                 if len(numeric_cols) > 0:
-                    values = df_uploaded[numeric_cols[0]].tolist()
-                    st.session_state.characteristics[active_characteristic]["worksheet_data"] = pd.DataFrame(
-                        {"Value": values}
-                    )
-                    st.session_state.characteristics[active_characteristic]["original_worksheet_data"] = pd.DataFrame(
-                        {"Value": values}
-                    )
-                    st.session_state.characteristics[active_characteristic]["raw_data"] = ", ".join(
-                        map(str, pd.Series(values).dropna().tolist())
-                    )
-                    st.session_state.characteristics[active_characteristic]["transform_dirty"] = False
+                    imported_count = 0
+                    for col_name in numeric_cols:
+                        char_name = str(col_name).strip()
+                        if not char_name:
+                            char_name = f"Measurement {imported_count + 1}"
+                        values = df_uploaded[col_name].tolist()
+                        valid_count = len(pd.Series(values).dropna())
+
+                        if char_name not in st.session_state.characteristics:
+                            st.session_state.characteristics[char_name] = default_characteristic_state(char_name)
+
+                        st.session_state.characteristics[char_name]["worksheet_data"] = pd.DataFrame(
+                            {"Value": values}
+                        )
+                        st.session_state.characteristics[char_name]["original_worksheet_data"] = pd.DataFrame(
+                            {"Value": values}
+                        )
+                        st.session_state.characteristics[char_name]["raw_data"] = ", ".join(
+                            map(str, pd.Series(values).dropna().tolist())
+                        )
+                        st.session_state.characteristics[char_name]["transform_dirty"] = False
+                        imported_count += 1
+
                     st.session_state.last_uploaded_signature = upload_signature
-                    sync_global_from_characteristic(active_characteristic)
+                    # Set active to first imported characteristic
+                    first_char = str(numeric_cols[0]).strip() or "Measurement 1"
+                    if first_char in st.session_state.characteristics:
+                        set_active_characteristic(first_char)
                     st.success(
-                        f"✅ Imported {len(pd.Series(values).dropna())} values from `{numeric_cols[0]}`"
+                        f"✅ Imported **{imported_count}** characteristic(s) from `{uploaded_file.name}` with up to {len(df_uploaded)} rows each."
                     )
                 else:
                     st.error("No numeric columns found in the uploaded file.")
             except Exception as e:
                 st.error(f"Error reading file: {e}")
 
-    # --- Spreadsheet Data Grid ---
-    grid_stats_cols = st.columns([2, 1])
+    # --- 3. Multi-Column Measurement Grid ---
+    st.subheader("3. Parts Worksheet")
+    st.caption(
+        "Each row is one part. `DMC` is the part identifier. Each additional column is a measurement characteristic."
+    )
 
-    with grid_stats_cols[0]:
-        st.subheader("2. Parts Worksheet")
-        st.caption(
-            "Each row is one part. Use `DMC` for the part identifier and `Value` for the measured actual dimension."
-        )
-        ensure_part_ids()
-        value_series = st.session_state.worksheet_data["Value"].tolist()
-        row_count = max(len(st.session_state.part_ids), len(value_series), 20)
-        padded_part_ids = list(st.session_state.part_ids) + [""] * max(
-            0, row_count - len(st.session_state.part_ids)
-        )
-        padded_values = value_series + [None] * max(0, row_count - len(value_series))
-        matrix_df = pd.DataFrame({"DMC": padded_part_ids[:row_count], "Value": padded_values[:row_count]})
-        column_config = {
-            "DMC": st.column_config.TextColumn(
-                "DMC / Serial Number",
-                help="Data Matrix Code or unique part identifier.",
-            ),
-            "Value": st.column_config.NumberColumn(
-                st.session_state.measurement_name or "Measurement Value",
-                help=st.session_state.get("description", "") or "Measured actual value.",
-                format="%.4f",
-                step=0.0001,
-            ),
-        }
+    ensure_part_ids()
+    matrix_df = build_characteristic_matrix()
 
-        edited_matrix_df = st.data_editor(
-            matrix_df,
-            num_rows="dynamic",
-            use_container_width=True,
-            height=430,
-            hide_index=True,
-            column_config=column_config,
-            key="parts_matrix_editor",
+    # Build column config dynamically
+    column_config = {
+        "DMC": st.column_config.TextColumn(
+            "DMC / Serial Number",
+            help="Data Matrix Code or unique part identifier.",
+        ),
+    }
+    for char_name in st.session_state.characteristics:
+        char_state = st.session_state.characteristics[char_name]
+        desc = char_state.get("description", "") or "Measured actual value."
+        column_config[char_name] = st.column_config.NumberColumn(
+            char_name,
+            help=f"{desc} | Tₘ={char_state.get('tm', '')}, LSL={char_state.get('lsl', '')}, USL={char_state.get('usl', '')}",
+            format="%.4f",
+            step=0.0001,
         )
-        st.session_state.part_ids = edited_matrix_df["DMC"].fillna("").astype(str).tolist()
-        current_column = edited_matrix_df["Value"]
-        valid_values = current_column.dropna().tolist()
-        st.session_state.worksheet_data = pd.DataFrame({"Value": current_column.tolist()})
-        st.session_state.raw_data = ", ".join(map(str, valid_values))
-        if not st.session_state.get("transform_dirty", False):
-            st.session_state.original_worksheet_data = st.session_state.worksheet_data.copy()
-        sync_characteristic_from_global(active_characteristic)
+
+    edited_matrix_df = st.data_editor(
+        matrix_df,
+        num_rows="dynamic",
+        use_container_width=True,
+        height=480,
+        hide_index=True,
+        column_config=column_config,
+        key="parts_matrix_editor",
+    )
+
+    # Save edited matrix back to characteristic states
+    save_characteristic_matrix(edited_matrix_df)
 
     # --- Status bar ---
-    valid_data = coerce_valid_numeric_values(valid_values)
-    if valid_data:
+    status_parts = []
+    for char_name in st.session_state.characteristics:
+        char_state = st.session_state.characteristics[char_name]
+        ws = char_state.get("worksheet_data")
+        if isinstance(ws, pd.DataFrame) and "Value" in ws.columns:
+            count = len(coerce_valid_numeric_values(ws["Value"].dropna().tolist()))
+            if count > 0:
+                status_parts.append(f"`{char_name}`: **{count}** pts")
+    if status_parts:
         st.success(
-            f"✅ **{len(valid_data)}** valid data points ready for analysis for `{st.session_state.active_characteristic_name}`. Go to 'Analysis & Report' and select 'Use Data Worksheet' mode."
+            f"✅ Data ready — {', '.join(status_parts)}. Go to **Analysis & Report** → select **Use Data Worksheet** mode → click **ANALYZE ALL**."
         )
+    else:
+        st.info("Enter data in the grid above or upload a file to get started.")
+
+
 
 
 # --- Tab 3: Visualization ---
@@ -3540,7 +3694,7 @@ with tab_viz:
     st.markdown(
         """
     <p style="font-size: 0.9rem; color: inherit; opacity: 0.7;">
-    Interactive charts with zoom, pan, and export options. Use mouse wheel to zoom, drag to pan.
+    Interactive charts for each characteristic. Select a sub-tab to view charts.
     </p>
     """,
         unsafe_allow_html=True,
@@ -3551,330 +3705,349 @@ with tab_viz:
         "Show Annotations", value=True, key="show_annotations"
     )
 
-    figs = st.session_state.figs
-    res = st.session_state.results
-    viz_data = []
-    if "worksheet_data" in st.session_state and isinstance(
-        st.session_state.worksheet_data, pd.DataFrame
-    ):
-        viz_data = coerce_valid_numeric_values(
-            st.session_state.worksheet_data["Value"].dropna().tolist()
-        )
+    # Dynamic sub-tabs for each characteristic
+    viz_char_names = list(st.session_state.characteristics.keys())
+    if len(viz_char_names) == 0:
+        st.info("No characteristics defined. Go to Data Worksheet to add one.")
+    else:
+        viz_sub_tabs = st.tabs(viz_char_names)
 
-    if len(viz_data) >= 2:
-        st.subheader("Worksheet Distribution")
-        preview_cols = st.columns(2)
+        for viz_tab_idx, viz_char_name in enumerate(viz_char_names):
+            with viz_sub_tabs[viz_tab_idx]:
+                viz_char_state = st.session_state.characteristics[viz_char_name]
+                figs = viz_char_state.get("figs", {})
+                res = viz_char_state.get("results", {})
 
-        with preview_cols[0]:
-            fig_hist_preview = go.Figure()
-            fig_hist_preview.add_trace(
-                go.Histogram(
-                    x=viz_data,
-                    nbinsx=20,
-                    marker_color="#3B82F6",
-                    opacity=0.75,
-                    name="Data",
-                )
-            )
-            fig_hist_preview.update_layout(
-                title="Distribution Histogram",
-                height=300,
-                margin=dict(l=40, r=20, t=50, b=40),
-                showlegend=False,
-                template="plotly_white",
-            )
-            st.plotly_chart(
-                fig_hist_preview,
-                use_container_width=True,
-                config=PlotManager.PLOT_CONFIG,
-            )
-
-        with preview_cols[1]:
-            fig_box = go.Figure()
-            fig_box.add_trace(
-                go.Box(
-                    y=viz_data,
-                    marker_color="#10B981",
-                    boxpoints="outliers",
-                    name="Values",
-                )
-            )
-            fig_box.update_layout(
-                title="Box Plot",
-                height=300,
-                margin=dict(l=40, r=20, t=50, b=40),
-                showlegend=False,
-                template="plotly_white",
-            )
-            st.plotly_chart(
-                fig_box, use_container_width=True, config=PlotManager.PLOT_CONFIG
-            )
-
-    if figs and figs.get("before") and figs.get("after"):
-        viz_cols = st.columns(2)
-        with viz_cols[0]:
-            st.plotly_chart(
-                figs["before"], use_container_width=True, config=PlotManager.PLOT_CONFIG
-            )
-        with viz_cols[1]:
-            st.plotly_chart(
-                figs["after"], use_container_width=True, config=PlotManager.PLOT_CONFIG
-            )
-
-        if figs.get("hist"):
-            st.subheader("Data Distribution Analysis")
-            st.plotly_chart(
-                figs["hist"], use_container_width=True, config=PlotManager.PLOT_CONFIG
-            )
-
-        # --- Control Charts (I-Chart + MR-Chart with Filter) ---
-        if res and res.get("importedData") and len(res.get("importedData", [])) >= 5:
-            st.subheader("📊 Control Charts")
-
-            data_points_all = res.get("importedData", [])
-            total_n = len(data_points_all)
-
-            # --- Filter control ---
-            ctrl_cols = st.columns([1, 2, 1])
-            with ctrl_cols[0]:
-                filter_options = [10, 25, 50, 100, 250, 500, "All"]
-                # Only show options up to and including the total count
-                valid_options = [opt for opt in filter_options
-                                 if opt == "All" or (isinstance(opt, int) and opt <= total_n)]
-                if not valid_options or valid_options[-1] != "All":
-                    valid_options.append("All")
-                default_idx = min(2, len(valid_options) - 1)  # Default to 50 or closest
-                show_n = st.selectbox(
-                    "Show Points",
-                    valid_options,
-                    index=default_idx,
-                    key="ctrl_chart_filter",
-                    help="Filter the number of data points displayed in control charts",
-                )
-            with ctrl_cols[1]:
-                effective_n = total_n if show_n == "All" else int(show_n)
-                st.info(f"Showing **{min(effective_n, total_n)}** of **{total_n}** data points")
-            with ctrl_cols[2]:
-                show_warnings = st.checkbox("Show Warning Limits (±2σ)", value=True, key="show_uwl")
-
-            # Slice data
-            data_points = data_points_all[:effective_n]
-            n = len(data_points)
-            x_bar = float(np.mean(data_points))
-            s = float(np.std(data_points, ddof=1)) if n >= 2 else 0.0
-
-            # ±1σ zone lines
-            plus_1s = x_bar + 1 * s
-            minus_1s = x_bar - 1 * s
-
-            # I-MR constants
-            ucl = x_bar + 3 * s
-            lcl = x_bar - 3 * s
-            uwl = x_bar + 2 * s
-            lwl = x_bar - 2 * s
-
-            # Specification lines from session state
-            _lsl = float(st.session_state.get("lsl", 0))
-            _usl = float(st.session_state.get("usl", 0))
-            _tm = float(st.session_state.get("tm", 0))
-
-            # Moving Range
-            mr_values = [abs(data_points[i] - data_points[i - 1]) for i in range(1, n)]
-            mr_bar = float(np.mean(mr_values)) if mr_values else 0.0
-            mr_ucl = 3.267 * mr_bar  # D4 for n=2
-
-            # ====== I-CHART ======
-            fig_control = go.Figure()
-
-            fig_control.add_trace(
-                go.Scatter(
-                    x=list(range(1, n + 1)),
-                    y=data_points,
-                    mode="lines+markers",
-                    name="Individual Value",
-                    line=dict(color="#3B82F6", width=2),
-                    marker=dict(size=5, color="#3B82F6"),
-                    hovertemplate="Sample %{x}<br>Value: %{y:.4f}<extra></extra>",
-                )
-            )
-
-            # Center line
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n], y=[x_bar, x_bar],
-                    mode="lines", name=f"CL x̄ = {x_bar:.4f}",
-                    line=dict(color="#10B981", width=2, dash="solid"),
-                )
-            )
-            # UCL / LCL (±3σ)
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n], y=[ucl, ucl],
-                    mode="lines", name=f"UCL x̄+3σ = {ucl:.4f}",
-                    line=dict(color="#EF4444", width=1.5, dash="dash"),
-                )
-            )
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n], y=[lcl, lcl],
-                    mode="lines", name=f"LCL x̄−3σ = {lcl:.4f}",
-                    line=dict(color="#EF4444", width=1.5, dash="dash"),
-                )
-            )
-
-            # ±2σ Warning limits
-            if show_warnings:
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[1, n], y=[uwl, uwl],
-                        mode="lines", name=f"+2σ = {uwl:.4f}",
-                        line=dict(color="#F59E0B", width=1, dash="dot"),
+                # Get visualization data from this characteristic's worksheet
+                viz_data = []
+                viz_ws = viz_char_state.get("worksheet_data")
+                if isinstance(viz_ws, pd.DataFrame) and "Value" in viz_ws.columns:
+                    viz_data = coerce_valid_numeric_values(
+                        viz_ws["Value"].dropna().tolist()
                     )
-                )
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[1, n], y=[lwl, lwl],
-                        mode="lines", name=f"−2σ = {lwl:.4f}",
-                        line=dict(color="#F59E0B", width=1, dash="dot"),
-                    )
-                )
 
-            # ±1σ zone lines
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n], y=[plus_1s, plus_1s],
-                    mode="lines", name=f"+1σ = {plus_1s:.4f}",
-                    line=dict(color="#A78BFA", width=1, dash="dot"),
-                    visible="legendonly",
-                )
-            )
-            fig_control.add_trace(
-                go.Scatter(
-                    x=[1, n], y=[minus_1s, minus_1s],
-                    mode="lines", name=f"−1σ = {minus_1s:.4f}",
-                    line=dict(color="#A78BFA", width=1, dash="dot"),
-                    visible="legendonly",
-                )
-            )
+                if len(viz_data) >= 2:
+                    st.subheader(f"Worksheet Distribution — {viz_char_name}")
+                    preview_cols = st.columns(2)
 
-            # Specification lines (LSL / USL / Target)
-            if _usl > _lsl:
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[1, n], y=[_usl, _usl],
-                        mode="lines", name=f"USL = {_usl:.3f}",
-                        line=dict(color="#059669", width=2, dash="dashdot"),
-                    )
-                )
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[1, n], y=[_lsl, _lsl],
-                        mode="lines", name=f"LSL = {_lsl:.3f}",
-                        line=dict(color="#059669", width=2, dash="dashdot"),
-                    )
-                )
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[1, n], y=[_tm, _tm],
-                        mode="lines", name=f"Target = {_tm:.3f}",
-                        line=dict(color="#8B5CF6", width=1.5, dash="longdash"),
-                    )
-                )
+                    with preview_cols[0]:
+                        fig_hist_preview = go.Figure()
+                        fig_hist_preview.add_trace(
+                            go.Histogram(
+                                x=viz_data,
+                                nbinsx=20,
+                                marker_color="#3B82F6",
+                                opacity=0.75,
+                                name="Data",
+                            )
+                        )
+                        fig_hist_preview.update_layout(
+                            title="Distribution Histogram",
+                            height=300,
+                            margin=dict(l=40, r=20, t=50, b=40),
+                            showlegend=False,
+                            template="plotly_white",
+                        )
+                        st.plotly_chart(
+                            fig_hist_preview,
+                            use_container_width=True,
+                            config=PlotManager.PLOT_CONFIG,
+                            key=f"viz_hist_preview_{viz_char_name}",
+                        )
 
-            # Out-of-control points
-            ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
-            if ooc_indices:
-                fig_control.add_trace(
-                    go.Scatter(
-                        x=[i + 1 for i in ooc_indices],
-                        y=[data_points[i] for i in ooc_indices],
-                        mode="markers", name="Out of Control",
-                        marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
-                    )
-                )
+                    with preview_cols[1]:
+                        fig_box = go.Figure()
+                        fig_box.add_trace(
+                            go.Box(
+                                y=viz_data,
+                                marker_color="#10B981",
+                                boxpoints="outliers",
+                                name="Values",
+                            )
+                        )
+                        fig_box.update_layout(
+                            title="Box Plot",
+                            height=300,
+                            margin=dict(l=40, r=20, t=50, b=40),
+                            showlegend=False,
+                            template="plotly_white",
+                        )
+                        st.plotly_chart(
+                            fig_box, use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                            key=f"viz_box_{viz_char_name}",
+                        )
 
-            _fc = "#8b95a5"
+                if figs and figs.get("before") and figs.get("after"):
+                    viz_cols = st.columns(2)
+                    with viz_cols[0]:
+                        st.plotly_chart(
+                            figs["before"], use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                            key=f"viz_before_{viz_char_name}",
+                        )
+                    with viz_cols[1]:
+                        st.plotly_chart(
+                            figs["after"], use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                            key=f"viz_after_{viz_char_name}",
+                        )
 
-            # Right-side zone annotations
-            zone_annotations = [
-                dict(x=1.02, y=ucl, xref="paper", yref="y", text="UCL (x̄+3σ)", showarrow=False,
-                     font=dict(size=9, color="#EF4444"), xanchor="left"),
-                dict(x=1.02, y=lcl, xref="paper", yref="y", text="LCL (x̄−3σ)", showarrow=False,
-                     font=dict(size=9, color="#EF4444"), xanchor="left"),
-                dict(x=1.02, y=x_bar, xref="paper", yref="y", text="CL (x̄)", showarrow=False,
-                     font=dict(size=9, color="#10B981"), xanchor="left"),
-            ]
-            if show_warnings:
-                zone_annotations.extend([
-                    dict(x=1.02, y=uwl, xref="paper", yref="y", text="Zone B (+2σ)", showarrow=False,
-                         font=dict(size=8, color="#F59E0B"), xanchor="left"),
-                    dict(x=1.02, y=lwl, xref="paper", yref="y", text="Zone B (−2σ)", showarrow=False,
-                         font=dict(size=8, color="#F59E0B"), xanchor="left"),
-                ])
-            # Zone labels in the middle of chart
-            if s > 0:
-                zone_annotations.extend([
-                    dict(x=0.98, y=(x_bar + plus_1s) / 2, xref="paper", yref="y", text="Zone C",
-                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
-                    dict(x=0.98, y=(plus_1s + uwl) / 2, xref="paper", yref="y", text="Zone B",
-                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
-                    dict(x=0.98, y=(uwl + ucl) / 2, xref="paper", yref="y", text="Zone A",
-                         showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
-                ])
+                    if figs.get("hist"):
+                        st.subheader("Data Distribution Analysis")
+                        st.plotly_chart(
+                            figs["hist"], use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                            key=f"viz_hist_{viz_char_name}",
+                        )
 
-            _ctrl_layout = dict(
-                height=420,
-                margin=dict(t=55, b=65, l=55, r=70),
-                hovermode="x unified",
-                xaxis=dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
-                           tickfont=dict(size=10, color=_fc),
-                           gridcolor="rgba(128,128,128,0.15)"),
-                yaxis=dict(title=dict(text="Value", font=dict(color=_fc, size=11)),
-                           tickfont=dict(size=10, color=_fc),
-                           gridcolor="rgba(128,128,128,0.15)"),
-                legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
-                            bgcolor="rgba(128,128,128,0.08)", font=dict(size=9, color=_fc)),
-                hoverlabel=dict(font_size=11, bgcolor="rgba(30,41,59,0.92)",
-                                font_color="#e2e8f0", bordercolor="rgba(128,128,128,0.3)"),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                font=dict(color=_fc),
-            )
+                    # --- Control Charts (I-Chart + MR-Chart with Filter) ---
+                    # Use importedData from results if available, otherwise fall back to worksheet data
+                    control_chart_data = res.get("importedData", []) if res else []
+                    if not control_chart_data and viz_data:
+                        control_chart_data = viz_data
+                    if len(control_chart_data) >= 5:
+                        st.subheader("📊 Control Charts")
 
-            fig_control.update_layout(
-                title=dict(text=f"I-Chart — Individual Values ({n} points)", font=dict(size=12, color=_fc)),
-                annotations=zone_annotations,
-                **_ctrl_layout,
-            )
+                        data_points_all = control_chart_data
+                        total_n = len(data_points_all)
 
-            st.plotly_chart(fig_control, use_container_width=True, config=PlotManager.PLOT_CONFIG)
+                        # --- Filter control ---
+                        ctrl_cols = st.columns([1, 2, 1])
+                        with ctrl_cols[0]:
+                            filter_options = [10, 25, 50, 100, 250, 500, "All"]
+                            valid_options = [opt for opt in filter_options
+                                             if opt == "All" or (isinstance(opt, int) and opt <= total_n)]
+                            if not valid_options or valid_options[-1] != "All":
+                                valid_options.append("All")
+                            default_idx = min(2, len(valid_options) - 1)
+                            show_n = st.selectbox(
+                                "Show Points",
+                                valid_options,
+                                index=default_idx,
+                                key=f"ctrl_chart_filter_{viz_char_name}",
+                                help="Filter the number of data points displayed in control charts",
+                            )
+                        with ctrl_cols[1]:
+                            effective_n = total_n if show_n == "All" else int(show_n)
+                            st.info(f"Showing **{min(effective_n, total_n)}** of **{total_n}** data points")
+                        with ctrl_cols[2]:
+                            show_warnings = st.checkbox("Show Warning Limits (±2σ)", value=True, key=f"show_uwl_{viz_char_name}")
 
-            # Alert
-            if ooc_indices:
-                st.warning(
-                    f"⚠️ {len(ooc_indices)} point(s) outside control limits at samples: {', '.join(map(str, [i + 1 for i in ooc_indices[:20]]))}"
-                    + (f" ... and {len(ooc_indices) - 20} more" if len(ooc_indices) > 20 else "")
-                )
-            else:
-                st.success("✅ All points within control limits — process is in statistical control")
+                        # Slice data
+                        data_points = data_points_all[:effective_n]
+                        n = len(data_points)
+                        x_bar = float(np.mean(data_points))
+                        s = float(np.std(data_points, ddof=1)) if n >= 2 else 0.0
 
-            # ====== STATISTICS SUMMARY PANEL ======
-            st.markdown("---")
-            st.subheader("📋 Control Chart Statistics Summary")
+                        # ±1σ zone lines
+                        plus_1s = x_bar + 1 * s
+                        minus_1s = x_bar - 1 * s
 
-            # Calculate additional metrics
-            _cp = ((_usl - _lsl) / (6 * s)) if s > 0 and _usl > _lsl else float("inf")
-            _cpk = min((_usl - x_bar) / (3 * s), (x_bar - _lsl) / (3 * s)) if s > 0 and _usl > _lsl else float("inf")
-            _ppm_above = sum(1 for v in data_points if v > _usl)
-            _ppm_below = sum(1 for v in data_points if v < _lsl)
-            _zone_a = sum(1 for v in data_points if v > uwl or v < lwl)  # between 2σ-3σ
-            _zone_b = sum(1 for v in data_points if (uwl >= v > plus_1s) or (lwl <= v < minus_1s))
-            _zone_c = sum(1 for v in data_points if minus_1s <= v <= plus_1s)
-            _sigma_level = abs(x_bar - _tm) / s if s > 0 else 0.0
+                        # I-MR constants
+                        ucl = x_bar + 3 * s
+                        lcl = x_bar - 3 * s
+                        uwl = x_bar + 2 * s
+                        lwl = x_bar - 2 * s
 
-            stat_cols = st.columns(4)
-            with stat_cols[0]:
-                st.markdown("**📊 Central Tendency**")
-                st.markdown(f"""
+                        # Specification lines from characteristic state
+                        _lsl = float(viz_char_state.get("lsl", 0))
+                        _usl = float(viz_char_state.get("usl", 0))
+                        _tm = float(viz_char_state.get("tm", 0))
+
+                        # Moving Range
+                        mr_values = [abs(data_points[i] - data_points[i - 1]) for i in range(1, n)]
+                        mr_bar = float(np.mean(mr_values)) if mr_values else 0.0
+                        mr_ucl = 3.267 * mr_bar  # D4 for n=2
+
+                        # ====== I-CHART ======
+                        fig_control = go.Figure()
+
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=list(range(1, n + 1)),
+                                y=data_points,
+                                mode="lines+markers",
+                                name="Individual Value",
+                                line=dict(color="#3B82F6", width=2),
+                                marker=dict(size=5, color="#3B82F6"),
+                                hovertemplate="Sample %{x}<br>Value: %{y:.4f}<extra></extra>",
+                            )
+                        )
+
+                        # Center line
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=[1, n], y=[x_bar, x_bar],
+                                mode="lines", name=f"CL x̄ = {x_bar:.4f}",
+                                line=dict(color="#10B981", width=2, dash="solid"),
+                            )
+                        )
+                        # UCL / LCL (±3σ)
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=[1, n], y=[ucl, ucl],
+                                mode="lines", name=f"UCL x̄+3σ = {ucl:.4f}",
+                                line=dict(color="#EF4444", width=1.5, dash="dash"),
+                            )
+                        )
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=[1, n], y=[lcl, lcl],
+                                mode="lines", name=f"LCL x̄−3σ = {lcl:.4f}",
+                                line=dict(color="#EF4444", width=1.5, dash="dash"),
+                            )
+                        )
+
+                        # ±2σ Warning limits
+                        if show_warnings:
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[1, n], y=[uwl, uwl],
+                                    mode="lines", name=f"+2σ = {uwl:.4f}",
+                                    line=dict(color="#F59E0B", width=1, dash="dot"),
+                                )
+                            )
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[1, n], y=[lwl, lwl],
+                                    mode="lines", name=f"−2σ = {lwl:.4f}",
+                                    line=dict(color="#F59E0B", width=1, dash="dot"),
+                                )
+                            )
+
+                        # ±1σ zone lines
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=[1, n], y=[plus_1s, plus_1s],
+                                mode="lines", name=f"+1σ = {plus_1s:.4f}",
+                                line=dict(color="#A78BFA", width=1, dash="dot"),
+                                visible="legendonly",
+                            )
+                        )
+                        fig_control.add_trace(
+                            go.Scatter(
+                                x=[1, n], y=[minus_1s, minus_1s],
+                                mode="lines", name=f"−1σ = {minus_1s:.4f}",
+                                line=dict(color="#A78BFA", width=1, dash="dot"),
+                                visible="legendonly",
+                            )
+                        )
+
+                        # Specification lines (LSL / USL / Target)
+                        if _usl > _lsl:
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[1, n], y=[_usl, _usl],
+                                    mode="lines", name=f"USL = {_usl:.3f}",
+                                    line=dict(color="#059669", width=2, dash="dashdot"),
+                                )
+                            )
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[1, n], y=[_lsl, _lsl],
+                                    mode="lines", name=f"LSL = {_lsl:.3f}",
+                                    line=dict(color="#059669", width=2, dash="dashdot"),
+                                )
+                            )
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[1, n], y=[_tm, _tm],
+                                    mode="lines", name=f"Target = {_tm:.3f}",
+                                    line=dict(color="#8B5CF6", width=1.5, dash="longdash"),
+                                )
+                            )
+
+                        # Out-of-control points
+                        ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
+                        if ooc_indices:
+                            fig_control.add_trace(
+                                go.Scatter(
+                                    x=[i + 1 for i in ooc_indices],
+                                    y=[data_points[i] for i in ooc_indices],
+                                    mode="markers", name="Out of Control",
+                                    marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
+                                )
+                            )
+
+                        _fc = "#8b95a5"
+
+                        # Right-side zone annotations
+                        zone_annotations = [
+                            dict(x=1.02, y=ucl, xref="paper", yref="y", text="UCL (x̄+3σ)", showarrow=False,
+                                 font=dict(size=9, color="#EF4444"), xanchor="left"),
+                            dict(x=1.02, y=lcl, xref="paper", yref="y", text="LCL (x̄−3σ)", showarrow=False,
+                                 font=dict(size=9, color="#EF4444"), xanchor="left"),
+                            dict(x=1.02, y=x_bar, xref="paper", yref="y", text="CL (x̄)", showarrow=False,
+                                 font=dict(size=9, color="#10B981"), xanchor="left"),
+                        ]
+                        if show_warnings:
+                            zone_annotations.extend([
+                                dict(x=1.02, y=uwl, xref="paper", yref="y", text="Zone B (+2σ)", showarrow=False,
+                                     font=dict(size=8, color="#F59E0B"), xanchor="left"),
+                                dict(x=1.02, y=lwl, xref="paper", yref="y", text="Zone B (−2σ)", showarrow=False,
+                                     font=dict(size=8, color="#F59E0B"), xanchor="left"),
+                            ])
+                        # Zone labels in the middle of chart
+                        if s > 0:
+                            zone_annotations.extend([
+                                dict(x=0.98, y=(x_bar + plus_1s) / 2, xref="paper", yref="y", text="Zone C",
+                                     showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                                dict(x=0.98, y=(plus_1s + uwl) / 2, xref="paper", yref="y", text="Zone B",
+                                     showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                                dict(x=0.98, y=(uwl + ucl) / 2, xref="paper", yref="y", text="Zone A",
+                                     showarrow=False, font=dict(size=8, color="rgba(128,128,128,0.5)"), xanchor="right"),
+                            ])
+
+                        _ctrl_layout = dict(
+                            height=420,
+                            margin=dict(t=55, b=65, l=55, r=70),
+                            hovermode="x unified",
+                            xaxis=dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
+                                       tickfont=dict(size=10, color=_fc),
+                                       gridcolor="rgba(128,128,128,0.15)"),
+                            yaxis=dict(title=dict(text="Value", font=dict(color=_fc, size=11)),
+                                       tickfont=dict(size=10, color=_fc),
+                                       gridcolor="rgba(128,128,128,0.15)"),
+                            legend=dict(orientation="h", y=-0.22, x=0.5, xanchor="center",
+                                        bgcolor="rgba(128,128,128,0.08)", font=dict(size=9, color=_fc)),
+                            hoverlabel=dict(font_size=11, bgcolor="rgba(30,41,59,0.92)",
+                                            font_color="#e2e8f0", bordercolor="rgba(128,128,128,0.3)"),
+                            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                            font=dict(color=_fc),
+                        )
+
+                        fig_control.update_layout(
+                            title=dict(text=f"I-Chart — {viz_char_name} ({n} points)", font=dict(size=12, color=_fc)),
+                            annotations=zone_annotations,
+                            **_ctrl_layout,
+                        )
+
+                        st.plotly_chart(fig_control, use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                                        key=f"viz_ichart_{viz_char_name}")
+
+                        # Alert
+                        if ooc_indices:
+                            st.warning(
+                                f"⚠️ {len(ooc_indices)} point(s) outside control limits at samples: {', '.join(map(str, [i + 1 for i in ooc_indices[:20]]))}"
+                                + (f" ... and {len(ooc_indices) - 20} more" if len(ooc_indices) > 20 else "")
+                            )
+                        else:
+                            st.success("✅ All points within control limits — process is in statistical control")
+
+                        # ====== STATISTICS SUMMARY PANEL ======
+                        st.markdown("---")
+                        st.subheader(f"📋 Control Chart Statistics — {viz_char_name}")
+
+                        _cp = ((_usl - _lsl) / (6 * s)) if s > 0 and _usl > _lsl else float("inf")
+                        _cpk = min((_usl - x_bar) / (3 * s), (x_bar - _lsl) / (3 * s)) if s > 0 and _usl > _lsl else float("inf")
+                        _ppm_above = sum(1 for v in data_points if v > _usl)
+                        _ppm_below = sum(1 for v in data_points if v < _lsl)
+                        _zone_a = sum(1 for v in data_points if v > uwl or v < lwl)
+                        _zone_b = sum(1 for v in data_points if (uwl >= v > plus_1s) or (lwl <= v < minus_1s))
+                        _zone_c = sum(1 for v in data_points if minus_1s <= v <= plus_1s)
+                        _sigma_level = abs(x_bar - _tm) / s if s > 0 else 0.0
+
+                        stat_cols = st.columns(4)
+                        with stat_cols[0]:
+                            st.markdown("**📊 Central Tendency**")
+                            st.markdown(f"""
 | Metric | Value |
 |--------|-------|
 | x̄ (Mean) | `{x_bar:.5f}` |
@@ -3884,9 +4057,9 @@ with tab_viz:
 | n | `{n}` |
 """)
 
-            with stat_cols[1]:
-                st.markdown("**📏 Control Limits**")
-                st.markdown(f"""
+                        with stat_cols[1]:
+                            st.markdown("**📏 Control Limits**")
+                            st.markdown(f"""
 | Limit | Value |
 |-------|-------|
 | UCL (x̄+3σ) | `{ucl:.5f}` |
@@ -3898,11 +4071,11 @@ with tab_viz:
 | LCL (x̄−3σ) | `{lcl:.5f}` |
 """)
 
-            with stat_cols[2]:
-                st.markdown("**🎯 Capability**")
-                cp_display = f"{_cp:.3f}" if _cp < 999 else "∞"
-                cpk_display = f"{_cpk:.3f}" if _cpk < 999 else "∞"
-                st.markdown(f"""
+                        with stat_cols[2]:
+                            st.markdown("**🎯 Capability**")
+                            cp_display = f"{_cp:.3f}" if _cp < 999 else "∞"
+                            cpk_display = f"{_cpk:.3f}" if _cpk < 999 else "∞"
+                            st.markdown(f"""
 | Metric | Value |
 |--------|-------|
 | Cp | `{cp_display}` |
@@ -3914,9 +4087,9 @@ with tab_viz:
 | Tolerance | `{_usl - _lsl:.3f}` |
 """)
 
-            with stat_cols[3]:
-                st.markdown("**🔍 Zone Analysis**")
-                st.markdown(f"""
+                        with stat_cols[3]:
+                            st.markdown("**🔍 Zone Analysis**")
+                            st.markdown(f"""
 | Zone | Count | % |
 |------|-------|---|
 | Zone A (±2-3σ) | `{_zone_a}` | `{_zone_a/n*100:.1f}%` |
@@ -3928,75 +4101,78 @@ with tab_viz:
 | MR̄ | `{mr_bar:.5f}` | — |
 """)
 
-            st.markdown("---")
+                        st.markdown("---")
 
-            # ====== MR-CHART ======
-            fig_mr = go.Figure()
+                        # ====== MR-CHART ======
+                        fig_mr = go.Figure()
 
-            fig_mr.add_trace(
-                go.Scatter(
-                    x=list(range(2, n + 1)),
-                    y=mr_values,
-                    mode="lines+markers",
-                    name="Moving Range",
-                    line=dict(color="#F97316", width=2),
-                    marker=dict(size=5, color="#F97316"),
-                    hovertemplate="Sample %{x}<br>MR: %{y:.4f}<extra></extra>",
-                )
-            )
-            fig_mr.add_trace(
-                go.Scatter(
-                    x=[2, n], y=[mr_bar, mr_bar],
-                    mode="lines", name=f"MR̄ ({mr_bar:.4f})",
-                    line=dict(color="#10B981", width=2, dash="solid"),
-                )
-            )
-            fig_mr.add_trace(
-                go.Scatter(
-                    x=[2, n], y=[mr_ucl, mr_ucl],
-                    mode="lines", name=f"MR UCL ({mr_ucl:.4f})",
-                    line=dict(color="#EF4444", width=1.5, dash="dash"),
-                )
-            )
+                        fig_mr.add_trace(
+                            go.Scatter(
+                                x=list(range(2, n + 1)),
+                                y=mr_values,
+                                mode="lines+markers",
+                                name="Moving Range",
+                                line=dict(color="#F97316", width=2),
+                                marker=dict(size=5, color="#F97316"),
+                                hovertemplate="Sample %{x}<br>MR: %{y:.4f}<extra></extra>",
+                            )
+                        )
+                        fig_mr.add_trace(
+                            go.Scatter(
+                                x=[2, n], y=[mr_bar, mr_bar],
+                                mode="lines", name=f"MR̄ ({mr_bar:.4f})",
+                                line=dict(color="#10B981", width=2, dash="solid"),
+                            )
+                        )
+                        fig_mr.add_trace(
+                            go.Scatter(
+                                x=[2, n], y=[mr_ucl, mr_ucl],
+                                mode="lines", name=f"MR UCL ({mr_ucl:.4f})",
+                                line=dict(color="#EF4444", width=1.5, dash="dash"),
+                            )
+                        )
 
-            # MR out-of-control
-            mr_ooc = [i for i, v in enumerate(mr_values) if v > mr_ucl]
-            if mr_ooc:
-                fig_mr.add_trace(
-                    go.Scatter(
-                        x=[i + 2 for i in mr_ooc],
-                        y=[mr_values[i] for i in mr_ooc],
-                        mode="markers", name="MR Out of Control",
-                        marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
+                        # MR out-of-control
+                        mr_ooc = [i for i, v in enumerate(mr_values) if v > mr_ucl]
+                        if mr_ooc:
+                            fig_mr.add_trace(
+                                go.Scatter(
+                                    x=[i + 2 for i in mr_ooc],
+                                    y=[mr_values[i] for i in mr_ooc],
+                                    mode="markers", name="MR Out of Control",
+                                    marker=dict(size=12, color="#EF4444", symbol="circle-open", line=dict(width=2)),
+                                )
+                            )
+
+                        # MR annotations
+                        mr_annotations = [
+                            dict(x=1.02, y=mr_ucl, xref="paper", yref="y", text="MR UCL", showarrow=False,
+                                 font=dict(size=9, color="#EF4444"), xanchor="left"),
+                            dict(x=1.02, y=mr_bar, xref="paper", yref="y", text="MR̄", showarrow=False,
+                                 font=dict(size=9, color="#10B981"), xanchor="left"),
+                        ]
+
+                        fig_mr.update_layout(
+                            title=dict(text=f"MR-Chart — {viz_char_name} ({n-1} ranges)", font=dict(size=12, color=_fc)),
+                            annotations=mr_annotations,
+                            **{**_ctrl_layout,
+                               "xaxis": dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
+                                             tickfont=dict(size=10, color=_fc),
+                                             gridcolor="rgba(128,128,128,0.15)"),
+                               "yaxis": dict(title=dict(text="Moving Range |Xᵢ − Xᵢ₋₁|", font=dict(color=_fc, size=11)),
+                                             tickfont=dict(size=10, color=_fc),
+                                             gridcolor="rgba(128,128,128,0.15)")},
+                        )
+
+                        st.plotly_chart(fig_mr, use_container_width=True, config=PlotManager.PLOT_CONFIG,
+                                        key=f"viz_mrchart_{viz_char_name}")
+
+                elif not figs and len(viz_data) < 2:
+                    st.info(
+                        f"No analysis results for **{viz_char_name}** yet. Run analysis on the 'Analysis & Report' tab."
                     )
-                )
 
-            # MR annotations
-            mr_annotations = [
-                dict(x=1.02, y=mr_ucl, xref="paper", yref="y", text="MR UCL", showarrow=False,
-                     font=dict(size=9, color="#EF4444"), xanchor="left"),
-                dict(x=1.02, y=mr_bar, xref="paper", yref="y", text="MR̄", showarrow=False,
-                     font=dict(size=9, color="#10B981"), xanchor="left"),
-            ]
 
-            fig_mr.update_layout(
-                title=dict(text=f"MR-Chart — Moving Range ({n-1} ranges)", font=dict(size=12, color=_fc)),
-                annotations=mr_annotations,
-                **{**_ctrl_layout,
-                   "xaxis": dict(title=dict(text="Sample Number", font=dict(color=_fc, size=11)),
-                                 tickfont=dict(size=10, color=_fc),
-                                 gridcolor="rgba(128,128,128,0.15)"),
-                   "yaxis": dict(title=dict(text="Moving Range |Xᵢ − Xᵢ₋₁|", font=dict(color=_fc, size=11)),
-                                 tickfont=dict(size=10, color=_fc),
-                                 gridcolor="rgba(128,128,128,0.15)")},
-            )
-
-            st.plotly_chart(fig_mr, use_container_width=True, config=PlotManager.PLOT_CONFIG)
-
-    else:
-        st.info(
-            "Run analysis on the 'Analysis & Report' tab to generate visualizations."
-        )
 
 # --- Tab 4: History ---
 with tab_history:
