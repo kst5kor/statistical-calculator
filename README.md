@@ -43,7 +43,7 @@ pip install -r requirements.txt
 
 Open: [http://localhost:5180](http://localhost:5180)
 
-### Windows
+### Windows (Standard Python)
 
 First setup:
 
@@ -55,6 +55,19 @@ First setup:
 After setup:
 
 - Run `start.bat`
+
+### Windows (Anaconda - For Beginners)
+
+If you have Anaconda installed instead of standard Python, follow these steps:
+
+1. **Open Anaconda Prompt**: Search for "Anaconda Prompt" in the Windows Start Menu.
+2. **Navigate to Project**: Type `cd "C:\Path\To\Your\Statistical Calculator\py"` and press Enter.
+3. **Create Sandbox**: Type `conda create --name spc_env python=3.10` and press Enter (Type *y* to proceed).
+4. **Activate Sandbox**: Type `conda activate spc_env`.
+5. **Install Packages**: Type `pip install -r requirements.txt` and press Enter.
+6. **Launch App**: Type `streamlit run "import streamlit as st.py" --server.port 5180` and press Enter. 
+
+*(The app will open automatically at http://localhost:5180 in your browser)*
 
 ## Team Sharing
 
