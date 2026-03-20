@@ -320,6 +320,36 @@ class StatisticalCalculator:
         except (ValueError, TypeError):
             return False
 
+    def evaluate_nelson_rules(self, data, mean, std):
+        rules = {1: [], 2: [], 3: [], 4: [], 5: [], 6: [], 7: [], 8: []}
+        if not data or len(data) < 2 or std <= 0 or not np.isfinite(std):
+            return rules
+        for i, v in enumerate(data):
+            if abs(v - mean) > 3 * std: rules[1].append(i)
+            if i >= 8:
+                slice_data = data[i-8:i+1]
+                if all(x > mean for x in slice_data) or all(x < mean for x in slice_data): rules[2].append(i)
+            if i >= 5:
+                slice_data = data[i-5:i+1]
+                inc = all(slice_data[j] > slice_data[j-1] for j in range(1, 6))
+                dec = all(slice_data[j] < slice_data[j-1] for j in range(1, 6))
+                if inc or dec: rules[3].append(i)
+            if i >= 13:
+                slice_data = data[i-13:i+1]
+                diffs = [slice_data[j] - slice_data[j-1] for j in range(1, 14)]
+                if all(diffs[j]*diffs[j-1] < 0 for j in range(1, 13)): rules[4].append(i)
+            if i >= 2:
+                slice_data = data[i-2:i+1]
+                if sum(x > mean + 2*std for x in slice_data) >= 2 or sum(x < mean - 2*std for x in slice_data) >= 2: rules[5].append(i)
+            if i >= 4:
+                slice_data = data[i-4:i+1]
+                if sum(x > mean + std for x in slice_data) >= 4 or sum(x < mean - std for x in slice_data) >= 4: rules[6].append(i)
+            if i >= 14:
+                if all(abs(x - mean) <= std for x in data[i-14:i+1]): rules[7].append(i)
+            if i >= 7:
+                if all(abs(x - mean) > std for x in data[i-7:i+1]): rules[8].append(i)
+        return rules
+
     def calculate(self, inputs):
         params = {
             "tm": inputs.get("tm"),
@@ -456,6 +486,11 @@ class StatisticalCalculator:
                 "p_value": np.nan,
                 "alpha": alpha,
             }
+
+        if results["n_samples"] >= 2 and results["s"] >= 0 and results.get("importedData"):
+            results["nelson_rules"] = self.evaluate_nelson_rules(results["importedData"], results["x_bar"], results["s"])
+        else:
+            results["nelson_rules"] = {}
 
         return {**results, "error": None}
 
@@ -3577,6 +3612,30 @@ with tab_analysis:
                     f"{res.get('prob_below_target', 0) * 100:.1f}%",
                     help="The probability that a single measurement will fall below the Target Mean. If your process is centered on the target, this should be 50%.",
                 )
+            
+            if "nelson_rules" in res and res.get("importedData") and len(res.get("importedData")) >= 2:
+                nelson_rules = res["nelson_rules"]
+                with st.container(border=True):
+                    st.markdown("**Statistical Exceptions (Nelson Rules)**")
+                    fails = []
+                    names = {
+                        1: "Rule 1: Point > 3σ from mean",
+                        2: "Rule 2: 9 points same side of mean",
+                        3: "Rule 3: 6 points steadily trending",
+                        4: "Rule 4: 14 points alternating up/down",
+                        5: "Rule 5: 2 of 3 points > 2σ (same side)",
+                        6: "Rule 6: 4 of 5 points > 1σ (same side)",
+                        7: "Rule 7: 15 points within ±1σ",
+                        8: "Rule 8: 8 points > ±1σ (avoiding center)"
+                    }
+                    for r, idxs in nelson_rules.items():
+                        if idxs:
+                            fails.append(f"🔴 Fail — {names[r]} (occurred {len(idxs)} times)")
+                        else:
+                            fails.append(f"🟢 Pass — {names[r]}")
+                    for f in fails:
+                        st.markdown(f'<div style="font-size:0.9rem; margin-bottom: 0.2rem;">{f}</div>', unsafe_allow_html=True)
+                        
         else:
             st.info("Run analysis to see calculated results.")
 
@@ -4308,8 +4367,16 @@ with tab_viz:
                                 )
                             )
 
-                        # Out-of-control points
-                        ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
+                        # Out-of-control points (Nelson rules instead of just Rule 1)
+                        if res and "nelson_rules" in res:
+                            nelson_rules = res["nelson_rules"]
+                            ooc_indices_set = set()
+                            for rule_indices in nelson_rules.values():
+                                ooc_indices_set.update(rule_indices)
+                            ooc_indices = sorted(list(ooc_indices_set))
+                        else:
+                            ooc_indices = [i for i, v in enumerate(data_points) if v > ucl or v < lcl]
+                        
                         if ooc_indices:
                             fig_control.add_trace(
                                 go.Scatter(
